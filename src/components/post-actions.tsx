@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, ExternalLink, Loader2 } from "lucide-react";
+import { Download, ExternalLink, Loader2, Link } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import type { Post } from "~/lib/types";
@@ -27,6 +27,17 @@ export function PostActions({ post, size = "icon" }: PostActionsProps) {
 
 	return (
 		<div className="flex gap-2">
+			{post.source && post.source.trim() !== "" && (
+				<Button
+					variant="ghost"
+					size="icon"
+					onClick={() => window.open(post.source, "_blank")}
+					className={buttonSize}
+					title="View source"
+				>
+					<Link className="size-4" />
+				</Button>
+			)}
 			<Button
 				variant="ghost"
 				size="icon"

@@ -39,16 +39,14 @@ function PostCard({ post, onClick }: PostCardProps) {
 		return () => window.removeEventListener("resize", checkMobile);
 	}, []);
 
-	// Use sample_url (higher quality) on mobile, preview_url on desktop
+	// Use sample_url for better quality on larger thumbnails
 	const thumbnailSrc = imageError
 		? null
-		: isMobile
-			? post.sample_url || post.preview_url
-			: post.preview_url || post.sample_url;
+		: post.sample_url || post.preview_url;
 
 	return (
 		<div
-			className="group relative w-full aspect-square bg-muted rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
+			className="group relative w-full aspect-square bg-muted overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl"
 			onClick={onClick}
 		>
 			{!thumbnailSrc ? (
@@ -59,17 +57,24 @@ function PostCard({ post, onClick }: PostCardProps) {
 				<img
 					src={thumbnailSrc}
 					alt={`Post ${post.id}`}
-					className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+					className="w-full h-full object-cover"
 					loading="lazy"
 					onError={() => setImageError(true)}
 				/>
 			)}
-			<div className="absolute inset-0 bg-gradient-to-t from-white/90 dark:from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-			<div className="absolute bottom-2 left-2 right-2 text-foreground dark:text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-				<div className="font-medium truncate">Post #{post.id}</div>
-				<div className="text-foreground/70 dark:text-white/80 text-xs">
+			{/* Dark overlay for text visibility - no gradient, just solid dark */}
+			<div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+			{/* Post info on hover */}
+			<div className="absolute bottom-0 left-0 right-0 p-3 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+				<div className="font-bold text-sm">POST #{post.id}</div>
+				<div className="text-xs opacity-90">
 					{post.width} × {post.height}
 				</div>
+				{post.score !== undefined && (
+					<div className="text-xs opacity-90 mt-1">
+						SCORE: {post.score}
+					</div>
+				)}
 			</div>
 		</div>
 	);
@@ -365,7 +370,7 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 	}
 
 	return (
-		<div className="w-full max-w-7xl mx-auto px-4">
+		<div className="w-full px-4 md:px-6 lg:px-8">
 			<div className="mb-6 flex items-center justify-between">
 				<div className="flex items-center gap-2">
 					<p className="text-sm text-muted-foreground">
@@ -429,7 +434,7 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 			</div>
 
 			{/* Larger grid layout with better spacing */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
+			<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
 				{data?.pages.map((page, pageIndex) => (
 					<React.Fragment key={pageIndex}>
 						{pageIndex > 0 && <PageSeparator pageNumber={pageIndex + 1} />}

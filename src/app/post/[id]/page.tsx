@@ -250,25 +250,34 @@ export default function PostPage() {
 	// Mobile view
 	if (isMobile) {
 		return (
-			<div className="fixed inset-0 z-[9999] bg-black flex flex-col">
+			<div className="fixed inset-0 z-[9999] bg-background flex flex-col">
 				{/* Header */}
-				<div className="flex-shrink-0 p-3 bg-black z-50">
+				<div className="flex-shrink-0 p-3 bg-background z-50">
 					<div className="flex justify-between items-center">
-						<div className="bg-black/50 backdrop-blur-sm rounded-full px-3 py-1.5">
-							<span className="text-white text-sm font-medium">
-								#{post.id}
-								{posts.length > 0 && (
-									<span className="ml-2 text-xs opacity-70">
-										{currentIndex + 1} / {posts.length}
+						<div className="flex items-center gap-2">
+							<div className="bg-muted/80 backdrop-blur-sm rounded-full px-3 py-1.5">
+								<span className="text-foreground text-sm font-medium">
+									#{post.id}
+									{posts.length > 0 && (
+										<span className="ml-2 text-xs opacity-70">
+											{currentIndex + 1} / {posts.length}
+										</span>
+									)}
+								</span>
+							</div>
+							{post.score !== undefined && (
+								<div className="bg-muted/80 backdrop-blur-sm rounded-full px-3 py-1.5">
+									<span className="text-foreground text-sm font-medium">
+										SCORE: {post.score}
 									</span>
-								)}
-							</span>
+								</div>
+							)}
 						</div>
 						<Button
 							variant="ghost"
 							size="icon"
 							onClick={handleClose}
-							className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm text-white transition-colors"
+							className="h-8 w-8 rounded-full bg-muted/80 hover:bg-muted backdrop-blur-sm transition-colors"
 						>
 							<X className="h-4 w-4" />
 						</Button>
@@ -276,7 +285,7 @@ export default function PostPage() {
 				</div>
 
 				{/* Media container */}
-				<div className="flex-1 min-h-0 relative flex items-center justify-center bg-black">
+				<div className="flex-1 min-h-0 relative flex items-center justify-center bg-muted/50">
 					<PostMedia 
 						post={post}
 						className="max-w-full max-h-full object-contain"
@@ -289,7 +298,7 @@ export default function PostPage() {
 							variant="ghost"
 							size="icon"
 							onClick={() => handleNavigate('previous')}
-							className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-sm text-white transition-colors"
+							className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/80 hover:bg-background/95 backdrop-blur-sm border border-border/50 transition-colors"
 						>
 							<ChevronLeft className="h-5 w-5" />
 						</Button>
@@ -299,7 +308,7 @@ export default function PostPage() {
 							variant="ghost"
 							size="icon"
 							onClick={() => handleNavigate('next')}
-							className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-sm text-white transition-colors"
+							className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/80 hover:bg-background/95 backdrop-blur-sm border border-border/50 transition-colors"
 							disabled={isFetchingNextPage}
 						>
 							{isFetchingNextPage ? (
@@ -321,7 +330,7 @@ export default function PostPage() {
 					}}
 				>
 					{/* Actions bar */}
-					<div className="flex items-center justify-between px-4 pt-2 pb-3">
+					<div className="flex items-center justify-between px-4 py-3 h-[60px]">
 						<Button
 							variant="ghost"
 							size="sm"
@@ -357,13 +366,14 @@ export default function PostPage() {
 
 	// Desktop view
 	return (
-		<div className="fixed inset-0 z-[9999] bg-black flex flex-col">
+		<div className="fixed inset-0 z-[9999] bg-background flex flex-col">
 			{/* Header - matching mobile design */}
-			<div className="flex-shrink-0 p-3 bg-black z-50">
+			<div className="flex-shrink-0 p-3 bg-background z-50">
 				<div className="flex justify-between items-center">
 					{/* Post info - left side */}
-					<div className="bg-black/50 backdrop-blur-sm rounded-full px-3 py-1.5">
-							<span className="text-white text-sm font-medium">
+					<div className="flex items-center gap-2">
+						<div className="bg-muted/80 backdrop-blur-sm rounded-full px-3 py-1.5">
+							<span className="text-foreground text-sm font-medium">
 								#{post.id}
 								{posts.length > 0 && (
 									<span className="ml-2 text-xs opacity-70">
@@ -372,13 +382,21 @@ export default function PostPage() {
 								)}
 							</span>
 						</div>
+						{post.score !== undefined && (
+							<div className="bg-muted/80 backdrop-blur-sm rounded-full px-3 py-1.5">
+								<span className="text-foreground text-sm font-medium">
+									SCORE: {post.score}
+								</span>
+							</div>
+						)}
+					</div>
 
 					{/* Close button - right side */}
 					<Button
 						variant="ghost"
 						size="icon"
 						onClick={handleClose}
-						className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm text-white transition-colors"
+						className="h-8 w-8 rounded-full bg-muted/80 hover:bg-muted backdrop-blur-sm transition-colors"
 					>
 						<X className="h-4 w-4" />
 					</Button>
@@ -391,7 +409,7 @@ export default function PostPage() {
 					variant="ghost"
 					size="icon"
 					onClick={() => handleNavigate('previous')}
-					className="absolute left-4 top-1/2 -translate-y-1/2 z-50 h-12 w-12 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-sm text-white transition-colors"
+					className="absolute left-4 top-1/2 -translate-y-1/2 z-50 h-12 w-12 rounded-full bg-background/80 hover:bg-background/95 backdrop-blur-sm border border-border/50 transition-colors"
 					title="Previous post (←)"
 				>
 					<ChevronLeft className="h-6 w-6" />
@@ -402,7 +420,7 @@ export default function PostPage() {
 					variant="ghost"
 					size="icon"
 					onClick={() => handleNavigate('next')}
-					className="absolute right-4 top-1/2 -translate-y-1/2 z-50 h-12 w-12 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-sm text-white transition-colors"
+					className="absolute right-4 top-1/2 -translate-y-1/2 z-50 h-12 w-12 rounded-full bg-background/80 hover:bg-background/95 backdrop-blur-sm border border-border/50 transition-colors"
 					title="Next post (→)"
 					disabled={isFetchingNextPage}
 				>
@@ -415,7 +433,7 @@ export default function PostPage() {
 			)}
 
 			{/* Media container */}
-			<div className="flex-1 min-h-0 relative flex items-center justify-center bg-black">
+			<div className="flex-1 min-h-0 relative flex items-center justify-center bg-muted/50">
 				<PostMedia 
 					post={post}
 					className="max-w-full max-h-full object-contain"
@@ -434,7 +452,7 @@ export default function PostPage() {
 			>
 
 				{/* Actions bar */}
-				<div className="flex items-center justify-between px-4 pt-2 pb-3">
+				<div className="flex items-center justify-between px-4 py-3 h-[60px]">
 					<Button
 						variant="ghost"
 						size="sm"

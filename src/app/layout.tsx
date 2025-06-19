@@ -1,25 +1,32 @@
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Oxanium, Source_Code_Pro } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "~/components/query-provider";
 import { ThemeProvider } from "~/components/theme-provider";
 import { Toaster } from "~/components/ui/sonner";
 
-const geist = Geist({
-	variable: "--font-geist",
+const oxanium = Oxanium({
+	variable: "--font-oxanium",
 	subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-	variable: "--font-geist-mono",
+const sourceCodePro = Source_Code_Pro({
+	variable: "--font-source-code-pro",
 	subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
 	title: "booruthing.",
 	description: "booruthing - a place to browse different boorus",
+	viewport: {
+		width: "device-width",
+		initialScale: 1,
+		maximumScale: 1,
+		userScalable: false,
+		viewportFit: "cover",
+	},
 };
 
 export default function RootLayout({
@@ -29,7 +36,7 @@ export default function RootLayout({
 }>) {
 	return (
 		<html lang="en" suppressHydrationWarning>
-			<body className={`${geist.variable} ${geistMono.variable} antialiased`}>
+			<body className={`${oxanium.variable} ${sourceCodePro.variable} antialiased`}>
 				<QueryProvider>
 					<ThemeProvider
 						attribute="class"

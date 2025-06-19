@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
 	try {
 		const response = await fetch(
-			`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagsWithSort)}&pid=${page}&limit=42`,
+			`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagsWithSort)}&pid=${page}&limit=60`,
 			{
 				method: "GET",
 				headers: {

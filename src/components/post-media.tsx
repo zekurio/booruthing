@@ -3,6 +3,19 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import Image from "next/image";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
+// Media Chrome React wrappers
+import {
+	MediaController,
+	MediaControlBar,
+	MediaPlayButton,
+	MediaMuteButton,
+	MediaVolumeRange,
+	MediaTimeRange,
+	MediaTimeDisplay,
+	MediaFullscreenButton,
+	MediaSeekBackwardButton,
+	MediaSeekForwardButton,
+} from "media-chrome/react";
 
 import type { Post } from "~/lib/types";
 import { getMediaUrl, isGifFile, isVideoFile } from "~/lib/media-utils";
@@ -20,95 +33,99 @@ export const PostMedia = forwardRef<
 >(({ post, onLoad, className, isMobile = false }, ref) => {
 	const [videoError, setVideoError] = useState(false);
 	const [imageError, setImageError] = useState(false);
+	const [useProxy, setUseProxy] = useState(false);
+	const videoRef = useRef<HTMLVideoElement>(null);
 
 	const isVideo = isVideoFile(post.file_url);
 	const isGif = isGifFile(post.file_url);
 
-	// Handle fullscreen persistence on orientation change
+	// Forward ref properly for video element
+	useImperativeHandle(ref, () => {
+		if (isVideo && videoRef.current) {
+			return videoRef.current;
+		}
+		return null as any;
+	}, [isVideo]);
+
+	// Mobile fullscreen and orientation handling
 	useEffect(() => {
-		if (!isVideo || !isMobile) return;
+		if (!isVideo || !isMobile || !videoRef.current) return;
 
-		const handleFullscreenChange = () => {
-			const videoElement = ref && 'current' in ref ? ref.current as HTMLVideoElement : null;
-			if (!videoElement) return;
+		let previousOrientation: OrientationType | null = null;
 
-			// Store fullscreen state
+		const handleFullscreenChange = async () => {
+			if (!videoRef.current) return;
+
+			// Check if we're in fullscreen
 			const isFullscreen = !!(document.fullscreenElement || 
 				(document as any).webkitFullscreenElement ||
 				(document as any).mozFullScreenElement ||
 				(document as any).msFullscreenElement);
 
 			if (isFullscreen) {
-				// Apply mobile fullscreen fixes
-				document.body.style.overflow = 'hidden';
-				document.documentElement.style.overflow = 'hidden';
-				
-				// Force background color to prevent white lines
-				videoElement.style.background = 'black';
-				videoElement.style.position = 'fixed';
-				// Pin to all screen edges to avoid sub-pixel gaps (white lines)
-				videoElement.style.top = '0';
-				videoElement.style.left = '0';
-				videoElement.style.right = '0';
-				videoElement.style.bottom = '0';
-				// Use full viewport units to ensure proper coverage
-				videoElement.style.width = '100vw';
-				videoElement.style.height = '100vh';
-				videoElement.style.objectFit = 'contain';
-				videoElement.style.zIndex = '9999';
-				
-				// Lock orientation if possible (experimental API)
-				try {
-					if ('orientation' in screen && 'lock' in (screen.orientation as any)) {
-						(screen.orientation as any).lock('landscape').catch(() => {
-							// Orientation lock not supported or failed
-						});
-					}
-				} catch {
-					// Orientation API not supported
+				// Store current orientation
+				if ('orientation' in screen && screen.orientation) {
+					previousOrientation = screen.orientation.type;
 				}
-			} else {
-				// Reset body overflow
-				document.body.style.overflow = '';
-				document.documentElement.style.overflow = '';
-				
-				// Reset video styles
-				videoElement.style.position = '';
-				videoElement.style.top = '';
-				videoElement.style.left = '';
-				videoElement.style.right = '';
-				videoElement.style.bottom = '';
-				videoElement.style.width = '';
-				videoElement.style.height = '';
-				videoElement.style.zIndex = '';
-				
-				// Unlock orientation when exiting fullscreen
-				try {
-					if ('orientation' in screen && screen.orientation) {
-						screen.orientation.unlock();
+
+				// Try to lock orientation to current orientation to prevent rotation
+				if ('orientation' in screen && screen.orientation && 'lock' in screen.orientation) {
+					try {
+						// Lock to current orientation
+						await (screen.orientation as any).lock('any').catch(() => {
+							// If 'any' fails, try current orientation
+							if (screen.orientation.type.includes('portrait')) {
+								return (screen.orientation as any).lock('portrait').catch(() => {});
+							} else {
+								return (screen.orientation as any).lock('landscape').catch(() => {});
+							}
+						});
+					} catch (err) {
+						// Orientation lock not supported or failed
+						console.log('Orientation lock not supported');
 					}
-				} catch {
-					// Orientation API not supported
+				}
+
+				// Force resize for Chrome
+				setTimeout(() => {
+					window.dispatchEvent(new Event('resize'));
+				}, 100);
+			} else {
+				// Unlock orientation when exiting fullscreen
+				if ('orientation' in screen && screen.orientation && 'unlock' in screen.orientation) {
+					try {
+						(screen.orientation as any).unlock();
+					} catch (err) {
+						// Ignore unlock errors
+					}
 				}
 			}
 		};
 
-		// Handle viewport changes on mobile
-		const handleViewportChange = () => {
-			const videoElement = ref && 'current' in ref ? ref.current as HTMLVideoElement : null;
-			if (!videoElement) return;
-			
+		// Prevent fullscreen exit on orientation change
+		const handleOrientationChange = (e: Event) => {
 			const isFullscreen = !!(document.fullscreenElement || 
 				(document as any).webkitFullscreenElement ||
 				(document as any).mozFullScreenElement ||
 				(document as any).msFullscreenElement);
+
+			if (isFullscreen && videoRef.current) {
+				// Prevent default behavior
+				e.preventDefault();
 				
-			if (isFullscreen) {
-				// Reapply fullscreen styles on viewport change
+				// Re-request fullscreen if it was lost
 				setTimeout(() => {
-					videoElement.style.height = '100vh';
-					videoElement.style.width = '100vw';
-				}, 50);
+					if (!document.fullscreenElement && videoRef.current) {
+						const requestFullscreen = videoRef.current.requestFullscreen ||
+							(videoRef.current as any).webkitRequestFullscreen ||
+							(videoRef.current as any).mozRequestFullScreen ||
+							(videoRef.current as any).msRequestFullscreen;
+						
+						if (requestFullscreen) {
+							requestFullscreen.call(videoRef.current).catch(() => {});
+						}
+					}
+				}, 100);
 			}
 		};
 
@@ -117,19 +134,23 @@ export const PostMedia = forwardRef<
 		document.addEventListener('mozfullscreenchange', handleFullscreenChange);
 		document.addEventListener('MSFullscreenChange', handleFullscreenChange);
 		
-		// Listen for viewport changes (mobile keyboard, orientation, etc.)
-		window.addEventListener('resize', handleViewportChange);
-		window.visualViewport?.addEventListener('resize', handleViewportChange);
+		window.addEventListener('orientationchange', handleOrientationChange);
+		if ('orientation' in screen && screen.orientation) {
+			screen.orientation.addEventListener('change', handleOrientationChange);
+		}
 
 		return () => {
 			document.removeEventListener('fullscreenchange', handleFullscreenChange);
 			document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
 			document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
 			document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-			window.removeEventListener('resize', handleViewportChange);
-			window.visualViewport?.removeEventListener('resize', handleViewportChange);
+			
+			window.removeEventListener('orientationchange', handleOrientationChange);
+			if ('orientation' in screen && screen.orientation) {
+				screen.orientation.removeEventListener('change', handleOrientationChange);
+			}
 		};
-	}, [isVideo, isMobile, ref]);
+	}, [isVideo, isMobile]);
 
 	const handleMediaLoad = () => {
 		if (onLoad) {
@@ -138,59 +159,59 @@ export const PostMedia = forwardRef<
 	};
 
 	if (isVideo && !videoError) {
-		// Create video props object with proper attribute names
-		const videoProps: React.VideoHTMLAttributes<HTMLVideoElement> = {
-			src: getMediaUrl(post.file_url, false),
-			controls: true,
-			muted: true,
-			autoPlay: true,
-			loop: true,
-			playsInline: true,
-			preload: "metadata",
-			controlsList: "nodownload",
-			disablePictureInPicture: false,
-			className: className || "max-w-full max-h-full object-contain",
-			style: {
-				WebkitTapHighlightColor: "transparent",
-				backgroundColor: "black",
-				margin: 0,
-				padding: 0,
-				// Fix for mobile fullscreen white line
-				...(isMobile && {
-					// Ensure video covers entire screen in fullscreen
-					position: "relative",
+		const videoUrl = useProxy
+			? `/api/proxy?url=${encodeURIComponent(post.file_url)}`
+			: getMediaUrl(post.file_url, false);
+
+		return (
+			<MediaController
+				style={{
 					width: "100%",
 					height: "100%",
-					// Prevent white lines during fullscreen transitions
-					WebkitTransform: "translateZ(0)",
-					transform: "translateZ(0)",
-					// Handle safe area insets on mobile
-					WebkitMaskImage: "-webkit-radial-gradient(white, black)",
-				}),
-			},
-			onLoadedMetadata: handleMediaLoad,
-			onError: (e) => {
-				console.error("Video failed to load:", post.file_url, e);
-				const video = e.target as HTMLVideoElement;
+					backgroundColor: "black",
+					maxWidth: "100vw",
+					maxHeight: "100vh",
+					objectFit: "contain",
+				}}
+				className={className || "max-w-full max-h-full"}
+			>
+				<video
+					slot="media"
+					ref={videoRef}
+					src={videoUrl}
+					autoPlay
+					muted
+					loop
+					playsInline
+					crossOrigin="anonymous"
+					poster={post.preview_url}
+					onLoadedMetadata={handleMediaLoad}
+					onError={() => {
+						console.error("Video failed to load:", post.file_url);
 
-				// If on mobile and using direct URL, try proxy as fallback
-				if (isMobile && !video.src.includes("/api/proxy")) {
-					video.src = `/api/proxy?url=${encodeURIComponent(post.file_url)}`;
-				} else {
-					setVideoError(true);
-				}
-			},
-		};
+						// If on mobile and not already using proxy, try proxy as fallback
+						if (isMobile && !useProxy) {
+							setUseProxy(true);
+						} else {
+							// If proxy also failed or not on mobile, show error
+							setVideoError(true);
+						}
+					}}
+					style={{ width: "100%", height: "100%", objectFit: "contain" }}
+				/>
 
-		// Add webkit attributes as lowercase data attributes
-		return (
-			<video
-				ref={ref as React.RefObject<HTMLVideoElement>}
-				{...videoProps}
-				data-webkit-playsinline="true"
-				data-x5-playsinline="true"
-				data-webkit-allowsinlinemediaplayback="true"
-			/>
+				{/* Basic mobile-friendly control bar */}
+				<MediaControlBar>
+					<MediaPlayButton />
+					<MediaSeekBackwardButton seekOffset={10} />
+					<MediaSeekForwardButton seekOffset={10} />
+					<MediaTimeRange />
+					<MediaTimeDisplay showDuration />
+					<MediaMuteButton />
+					<MediaVolumeRange />
+					<MediaFullscreenButton />
+				</MediaControlBar>
+			</MediaController>
 		);
 	}
 
