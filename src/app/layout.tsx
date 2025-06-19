@@ -1,11 +1,16 @@
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
-import { Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "~/components/query-provider";
 import { ThemeProvider } from "~/components/theme-provider";
 import { Toaster } from "~/components/ui/sonner";
+
+const geist = Geist({
+	variable: "--font-geist",
+	subsets: ["latin"],
+});
 
 const geistMono = Geist_Mono({
 	variable: "--font-geist-mono",
@@ -24,7 +29,7 @@ export default function RootLayout({
 }>) {
 	return (
 		<html lang="en" suppressHydrationWarning>
-			<body className={`${geistMono.variable} antialiased`}>
+			<body className={`${geist.variable} ${geistMono.variable} antialiased`}>
 				<QueryProvider>
 					<ThemeProvider
 						attribute="class"

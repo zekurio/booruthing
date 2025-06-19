@@ -19,15 +19,19 @@ import {
 	PopoverTrigger,
 } from "~/components/ui/popover";
 import type { AutocompleteResult, TagMode, TagWithMode } from "~/lib/types";
+import { getTagModeColor } from "~/lib/tag-utils";
+import { TagInput } from "~/components/tag-input";
+import { usePostStore } from "~/lib/post-store";
 
 export default function SearchPage() {
+	const { searchState, setSearchState } = usePostStore();
 	const [tagMode, setTagMode] = useState<TagMode>("include");
 	const [search, setSearch] = useState<string>("");
 	const [debouncedSearch, setDebouncedSearch] = useState<string>("");
 	const [showSuggestions, setShowSuggestions] = useState(false);
 	const [selectedIndex, setSelectedIndex] = useState(-1);
-	const [addedTags, setAddedTags] = useState<TagWithMode[]>([]);
-	const [isSearched, setIsSearched] = useState(false);
+	const [addedTags, setAddedTags] = useState<TagWithMode[]>(searchState.tags);
+	const [isSearched, setIsSearched] = useState(searchState.tags.length > 0);
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	// Debounce search input
@@ -169,7 +173,9 @@ export default function SearchPage() {
 			mode: tagMode,
 			id: `${tagText}-${Date.now()}`,
 		};
-		setAddedTags((prev) => [...prev, newTag]);
+		const newTags = [...addedTags, newTag];
+		setAddedTags(newTags);
+		setSearchState({ tags: newTags });
 
 		setSearch("");
 		setShowSuggestions(false);
@@ -202,30 +208,23 @@ export default function SearchPage() {
 	};
 
 	const removeTag = (tagId: string) => {
-		setAddedTags((prev) => prev.filter((tag) => tag.id !== tagId));
+		const newTags = addedTags.filter((tag) => tag.id !== tagId);
+		setAddedTags(newTags);
+		setSearchState({ tags: newTags });
 	};
 
 	const toggleTagMode = (tagId: string) => {
-		setAddedTags((prev) =>
-			prev.map((tag) => {
-				if (tag.id === tagId) {
-					const modes: TagMode[] = ["include", "exclude"];
-					const currentIndex = modes.indexOf(tag.mode);
-					const nextIndex = (currentIndex + 1) % modes.length;
-					return { ...tag, mode: modes[nextIndex] };
-				}
-				return tag;
-			}),
-		);
-	};
-
-	const getTagModeColor = (mode: TagMode) => {
-		switch (mode) {
-			case "include":
-				return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800";
-			case "exclude":
-				return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800";
-		}
+		const newTags = addedTags.map((tag) => {
+			if (tag.id === tagId) {
+				const modes: TagMode[] = ["include", "exclude"];
+				const currentIndex = modes.indexOf(tag.mode);
+				const nextIndex = (currentIndex + 1) % modes.length;
+				return { ...tag, mode: modes[nextIndex] };
+			}
+			return tag;
+		});
+		setAddedTags(newTags);
+		setSearchState({ tags: newTags });
 	};
 
 	return (
@@ -244,28 +243,12 @@ export default function SearchPage() {
 							<div className="relative w-full">
 								<Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-muted-foreground size-4 sm:size-5 pointer-events-none z-10" />
 
-								<div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pl-10 sm:pl-12 pr-20 sm:pr-24 py-2 h-auto min-h-10 sm:min-h-12 text-base sm:text-lg bg-muted border-none rounded-full">
-									{addedTags.map((tagWithMode) => (
-										<div
-											key={tagWithMode.id}
-											className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${getTagModeColor(
-												tagWithMode.mode,
-											)}`}
-										>
-											<button
-												onClick={() => toggleTagMode(tagWithMode.id)}
-												className="hover:opacity-70 transition-opacity"
-											>
-												<span className="font-medium">{tagWithMode.tag}</span>
-											</button>
-											<button
-												onClick={() => removeTag(tagWithMode.id)}
-												className="hover:opacity-70 transition-opacity"
-											>
-												<X className="size-2.5" />
-											</button>
-										</div>
-									))}
+								<div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pl-10 sm:pl-12 pr-20 sm:pr-24 py-2 h-auto min-h-10 sm:min-h-12 text-base sm:text-lg bg-muted border-none rounded-md">
+									<TagInput 
+										tags={addedTags} 
+										onRemoveTag={removeTag}
+										onToggleTagMode={toggleTagMode}
+									/>
 
 									<input
 										ref={inputRef}

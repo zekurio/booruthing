@@ -1,9 +1,9 @@
 "use client";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { AlertCircle, Cpu, Image as ImageIcon, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowUp, Cpu, Image as ImageIcon, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { PostDialog } from "~/components/post-dialog";
+import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import {
 	Select,
@@ -14,28 +14,17 @@ import {
 } from "~/components/ui/select";
 import { Toggle } from "~/components/ui/toggle";
 import { type Post, PostsApiResponse, type TagWithMode } from "~/lib/types";
-
-const formatTagsForApi = (tags: TagWithMode[]): string => {
-	return tags
-		.map((tag) => {
-			const formattedTag = tag.tag.replace(/ /g, "_");
-			switch (tag.mode) {
-				case "exclude":
-					return `-${formattedTag}`;
-				default:
-					return formattedTag;
-			}
-		})
-		.join(" ");
-};
+import { formatTagsForApi } from "~/lib/tag-utils";
+import { usePostStore } from "~/lib/post-store";
+import React from "react";
 
 interface PostCardProps {
 	post: Post;
+	onClick: () => void;
 }
 
-function PostCard({ post }: PostCardProps) {
+function PostCard({ post, onClick }: PostCardProps) {
 	const [imageError, setImageError] = useState(false);
-	const [dialogOpen, setDialogOpen] = useState(false);
 	const [isMobile, setIsMobile] = useState(false);
 
 	// Check if mobile on mount
@@ -58,35 +47,31 @@ function PostCard({ post }: PostCardProps) {
 			: post.preview_url || post.sample_url;
 
 	return (
-		<>
-			<div
-				className="group relative w-full aspect-square bg-muted rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
-				onClick={() => setDialogOpen(true)}
-			>
-				{!thumbnailSrc ? (
-					<div className="w-full h-full flex items-center justify-center bg-muted">
-						<ImageIcon className="size-12 text-muted-foreground" />
-					</div>
-				) : (
-					<img
-						src={thumbnailSrc}
-						alt={`Post ${post.id}`}
-						className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-						loading="lazy"
-						onError={() => setImageError(true)}
-					/>
-				)}
-				<div className="absolute inset-0 bg-gradient-to-t from-white/90 dark:from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-				<div className="absolute bottom-2 left-2 right-2 text-foreground dark:text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-					<div className="font-medium truncate">Post #{post.id}</div>
-					<div className="text-foreground/70 dark:text-white/80 text-xs">
-						{post.width} × {post.height}
-					</div>
+		<div
+			className="group relative w-full aspect-square bg-muted rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
+			onClick={onClick}
+		>
+			{!thumbnailSrc ? (
+				<div className="w-full h-full flex items-center justify-center bg-muted">
+					<ImageIcon className="size-12 text-muted-foreground" />
+				</div>
+			) : (
+				<img
+					src={thumbnailSrc}
+					alt={`Post ${post.id}`}
+					className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+					loading="lazy"
+					onError={() => setImageError(true)}
+				/>
+			)}
+			<div className="absolute inset-0 bg-gradient-to-t from-white/90 dark:from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+			<div className="absolute bottom-2 left-2 right-2 text-foreground dark:text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+				<div className="font-medium truncate">Post #{post.id}</div>
+				<div className="text-foreground/70 dark:text-white/80 text-xs">
+					{post.width} × {post.height}
 				</div>
 			</div>
-
-			<PostDialog post={post} open={dialogOpen} onOpenChange={setDialogOpen} />
-		</>
+		</div>
 	);
 }
 
@@ -142,13 +127,68 @@ function EmptyState({ message = "No posts found" }: EmptyStateProps) {
 	);
 }
 
+interface PageSeparatorProps {
+	pageNumber: number;
+}
+
+function PageSeparator({ pageNumber }: PageSeparatorProps) {
+	return (
+		<div className="col-span-full flex items-center justify-center py-4 my-4">
+			<div className="flex-1 h-px bg-border" />
+			<span className="px-4 text-sm text-muted-foreground font-medium">
+				Page {pageNumber}
+			</span>
+			<div className="flex-1 h-px bg-border" />
+		</div>
+	);
+}
+
 export function PostGallery({ tags }: { tags: TagWithMode[] }) {
-	const _tagsString = formatTagsForApi(tags);
+	const router = useRouter();
+	const { setPosts, searchState, setSearchState, setScrollPosition } = usePostStore();
 	const loadMoreRef = useRef<HTMLDivElement>(null);
-	const [sortOrder, setSortOrder] = useState<string>("id:desc");
-	const [filterAI, setFilterAI] = useState(false);
-	const [totalCount, setTotalCount] = useState<number | null>(null);
+	const [sortOrder, setSortOrder] = useState<string>(searchState.sortOrder);
+	const [filterAI, setFilterAI] = useState(searchState.filterAI);
+	const [totalCount, setTotalCount] = useState<number | null>(searchState.totalCount);
 	const [isCountLoading, setIsCountLoading] = useState(false);
+	const [showBackToTop, setShowBackToTop] = useState(false);
+
+	// Scroll handling for back-to-top button and position tracking
+	useEffect(() => {
+		const handleScroll = () => {
+			const scrollY = window.scrollY;
+			setShowBackToTop(scrollY > 500);
+			// Throttle scroll position updates
+			if (Math.abs(scrollY - searchState.scrollPosition) > 100) {
+				setScrollPosition(scrollY);
+			}
+		};
+
+		window.addEventListener("scroll", handleScroll);
+		
+		// Restore scroll position on mount
+		if (searchState.scrollPosition > 0) {
+			setTimeout(() => {
+				window.scrollTo(0, searchState.scrollPosition);
+			}, 100);
+		}
+
+		return () => window.removeEventListener("scroll", handleScroll);
+	}, []);
+
+	// Sync state changes to store
+	useEffect(() => {
+		setSearchState({ 
+			sortOrder, 
+			filterAI, 
+			totalCount,
+			tags 
+		});
+	}, [sortOrder, filterAI, totalCount, tags, setSearchState]);
+
+	const scrollToTop = () => {
+		window.scrollTo({ top: 0, behavior: "smooth" });
+	};
 
 	// Get all tags including hidden AI filter if enabled
 	const getAllTags = () => {
@@ -267,6 +307,16 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 		retry: 2,
 	});
 
+	// Update the store when posts change
+	const allPosts = data?.pages.flat() || [];
+	useEffect(() => {
+		if (allPosts.length > 0) {
+			setPosts(allPosts);
+		}
+		// Only update when data changes, not allPosts reference
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [data, setPosts]);
+
 	// Intersection Observer for infinite scrolling
 	useEffect(() => {
 		if (!hasNextPage || isFetchingNextPage) return;
@@ -292,7 +342,13 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 		};
 	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-	const allPosts = data?.pages.flat() || [];
+	// Navigation handler
+	const handlePostClick = (index: number) => {
+		const post = allPosts[index];
+		if (post) {
+			router.push(`/post/${post.id}?index=${index}`);
+		}
+	};
 
 	if (isLoading) {
 		return <LoadingState />;
@@ -313,7 +369,7 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 			<div className="mb-6 flex items-center justify-between">
 				<div className="flex items-center gap-2">
 					<p className="text-sm text-muted-foreground">
-						{allPosts.length.toLocaleString()} posts loaded
+						{allPosts.length.toLocaleString()}
 					</p>
 					{(isCountLoading || totalCount !== null) && (
 						<>
@@ -328,7 +384,7 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 							) : (
 								totalCount !== null && (
 									<p className="text-sm text-muted-foreground">
-										{totalCount.toLocaleString()} total
+										{totalCount.toLocaleString()}
 									</p>
 								)
 							)}
@@ -374,8 +430,22 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 
 			{/* Larger grid layout with better spacing */}
 			<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
-				{allPosts.map((post) => (
-					<PostCard key={post.id} post={post} />
+				{data?.pages.map((page, pageIndex) => (
+					<React.Fragment key={pageIndex}>
+						{pageIndex > 0 && <PageSeparator pageNumber={pageIndex + 1} />}
+						{page.map((post, postIndex) => {
+							const globalIndex = data.pages
+								.slice(0, pageIndex)
+								.reduce((acc, p) => acc + p.length, 0) + postIndex;
+							return (
+								<PostCard 
+									key={post.id} 
+									post={post} 
+									onClick={() => handlePostClick(globalIndex)} 
+								/>
+							);
+						})}
+					</React.Fragment>
 				))}
 			</div>
 
@@ -390,6 +460,18 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 					</p>
 				)}
 			</div>
+
+			{/* Back to top button */}
+			{showBackToTop && (
+				<Button
+					onClick={scrollToTop}
+					size="icon"
+					className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-lg"
+					aria-label="Back to top"
+				>
+					<ArrowUp className="h-5 w-5" />
+				</Button>
+			)}
 		</div>
 	);
 }

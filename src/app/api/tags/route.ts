@@ -14,6 +14,26 @@ function guessTagType(tag: string): string {
 		return "character";
 	}
 
+	// Common character patterns - check for known character-like names
+	const characterPatterns = [
+		// Common name suffixes/patterns
+		/_strife$/i,
+		/_lockhart$/i,
+		/_valentine$/i,
+		/_fair$/i,
+		/_gainsborough$/i,
+		// Common character indicators
+		/^[a-z]+_[a-z]+$/i, // first_last name pattern
+	];
+	
+	if (characterPatterns.some(pattern => cleanTag.match(pattern))) {
+		// Additional check - if it has exactly one underscore, it might be a character name
+		const underscoreCount = (cleanTag.match(/_/g) || []).length;
+		if (underscoreCount === 1 && !cleanTag.includes("fantasy") && !cleanTag.includes("game")) {
+			return "character";
+		}
+	}
+
 	// Common meta tags
 	const metaTags = [
 		"highres",
@@ -34,30 +54,52 @@ function guessTagType(tag: string): string {
 		"has_audio",
 		"loop",
 		"pixel_art",
+		"tagme",
 	];
 	if (metaTags.includes(cleanTag)) {
 		return "meta";
 	}
 
-	// Tags ending with common artist suffixes
-	if (tag.match(/_(artist|style)$/)) {
-		return "artist";
+	// Artist patterns - common artist tag patterns
+	const artistPatterns = [
+		/^[a-z0-9]+chan$/i, // ends with "chan"
+		/_(artist|style)$/,
+		/^[a-z0-9]+[0-9]+$/i, // artist names often have numbers
+	];
+	
+	// Check if it's a single word that could be an artist name
+	if (!cleanTag.includes("_") && cleanTag.length > 4 && cleanTag.length < 20) {
+		// Single word, reasonable length - could be artist
+		if (artistPatterns.some(pattern => cleanTag.match(pattern))) {
+			return "artist";
+		}
+		// Common artist name patterns
+		if (/^[a-z]+[0-9]*$/i.test(cleanTag) && !metaTags.includes(cleanTag)) {
+			return "artist";
+		}
 	}
 
 	// Common copyright/series patterns
 	const copyrightPatterns = [
-		"pokemon",
-		"nintendo",
-		"disney",
-		"marvel",
-		"dc_comics",
-		"anime",
-		"game",
-		"series",
-		"movie",
-		"cartoon",
+		/^final_fantasy/i,
+		/pokemon/i,
+		/nintendo/i,
+		/disney/i,
+		/marvel/i,
+		/dc_comics/i,
+		/_game$/i,
+		/_series$/i,
+		/_movie$/i,
+		/_anime$/i,
+		/_(company|copyright)$/i,
 	];
-	if (copyrightPatterns.some((pattern) => cleanTag.includes(pattern))) {
+	
+	if (copyrightPatterns.some((pattern) => cleanTag.match(pattern))) {
+		return "copyright";
+	}
+	
+	// Check for series/game titles (often have multiple underscores or specific patterns)
+	if (cleanTag.includes("_") && (cleanTag.includes("fantasy") || cleanTag.includes("game") || cleanTag.includes("series"))) {
 		return "copyright";
 	}
 
