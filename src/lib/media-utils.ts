@@ -22,8 +22,32 @@ export async function downloadPost(post: Post): Promise<void> {
 	try {
 		const extension = getFileExtension(post.file_url);
 		const filename = `post_${post.id}.${extension}`;
+		const isVideo = isVideoFile(post.file_url);
 		
-		// Use our API route to proxy the download
+		// For videos, use direct download for better performance with large files
+		if (isVideo) {
+			// Try direct download using an anchor tag with download attribute
+			const link = document.createElement("a");
+			link.href = post.file_url;
+			link.download = filename;
+			link.target = "_blank"; // Open in new tab as fallback
+			
+			// Style to ensure it's invisible
+			link.style.display = "none";
+			document.body.appendChild(link);
+			
+			// Trigger the download
+			link.click();
+			
+			// Clean up
+			setTimeout(() => {
+				document.body.removeChild(link);
+			}, 100);
+			
+			return;
+		}
+		
+		// For images and gifs, use the proxy approach for better compatibility and caching
 		const downloadUrl = `/api/download?${new URLSearchParams({
 			url: post.file_url,
 			filename: filename,

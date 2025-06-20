@@ -208,30 +208,64 @@ export const PostMedia = forwardRef<
 		return post.file_url || post.sample_url;
 	};
 
+	const handleContextMenu = (e: React.MouseEvent) => {
+		// Allow right-click context menu
+		e.stopPropagation();
+	};
+
+	const handlePanningStart = (ref: any, event: MouseEvent | TouchEvent) => {
+		// Disable panning on right-click (button 2)
+		if (event instanceof MouseEvent && event.button === 2) {
+			return false;
+		}
+		return true;
+	};
+
 	return (
 		<TransformWrapper
-			wheel={{ disabled: false }}
-			pinch={{ disabled: false }}
-			doubleClick={{ disabled: false }}
+		  wheel={{ disabled: false }}
+		  pinch={{ disabled: false }}
+		  doubleClick={{ disabled: false }}
+		  panning={{
+			disabled: false,
+			velocityDisabled: true,
+		  }}
+		  onPanningStart={handlePanningStart}
 		>
-			<TransformComponent
-				wrapperStyle={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center" }}
-				contentStyle={{ width: "100%", height: "100%" }}
-			>
-				<Image
-					ref={ref as React.RefObject<HTMLImageElement>}
-					src={getImageSrc() || ""}
-					alt={`Post ${post.id}`}
-					width={post.width}
-					height={post.height}
-					unoptimized
-					style={{ width: "100%", height: "100%", objectFit: "contain" }}
-					className={className || "select-none"}
-					sizes="100vw"
-					priority
-					onLoad={handleMediaLoad}
-				/>
-			</TransformComponent>
+		  <TransformComponent
+			// Add pointerEvents: "none" here
+			wrapperStyle={{
+			  width: "100%",
+			  height: "100%",
+			  display: "flex",
+			  justifyContent: "center",
+			  alignItems: "center",
+			  pointerEvents: "none",
+			}}
+			contentStyle={{ width: "100%", height: "100%" }}
+		  >
+			<Image
+			  ref={ref as React.RefObject<HTMLImageElement>}
+			  src={getImageSrc() || ""}
+			  alt={`Post ${post.id}`}
+			  width={post.width}
+			  height={post.height}
+			  unoptimized
+			  // Add pointerEvents: "auto" here
+			  style={{
+				width: "100%",
+				height: "100%",
+				objectFit: "contain",
+				pointerEvents: "auto",
+			  }}
+			  className={className || "select-none"}
+			  sizes="100vw"
+			  priority
+			  onLoad={handleMediaLoad}
+			  // This is no longer needed with the CSS fix, but it doesn't hurt to keep it
+			  onContextMenu={handleContextMenu}
+			/>
+		  </TransformComponent>
 		</TransformWrapper>
-	);
+	  );
 });
