@@ -224,7 +224,7 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 			if (!effectiveTagsString.trim()) return 0;
 
 			const tagsWithSort = `${effectiveTagsString} sort:${sortOrder}`;
-			const LIMIT_PER_PAGE = 100;
+			const LIMIT_PER_PAGE = 50;
 			let totalPosts = 0;
 			let currentPage = 0;
 			let hasMore = true;

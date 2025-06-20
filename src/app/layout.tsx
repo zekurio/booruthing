@@ -19,14 +19,7 @@ const sourceCodePro = Source_Code_Pro({
 
 export const metadata: Metadata = {
 	title: "booruthing.",
-	description: "booruthing - a better way to browse rule34",
-	viewport: {
-		width: "device-width",
-		initialScale: 1,
-		maximumScale: 1,
-		userScalable: false,
-		viewportFit: "cover",
-	},
+	description: "booruthing - a better way to browse rule34"
 };
 
 export default function RootLayout({

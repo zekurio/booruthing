@@ -10,7 +10,7 @@ import { usePostStore } from "~/lib/post-store";
 import type { Post, TagWithMode } from "~/lib/types";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { formatTagsForApi } from "~/lib/tag-utils";
-import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "~/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
 interface PostModalProps {
@@ -353,10 +353,14 @@ export function PostModal({ isOpen, onClose, initialIndex }: PostModalProps) {
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
+			<DialogTitle>Post {post.id}</DialogTitle>
 			<DialogContent 
 				className="!fixed !inset-0 !p-0 !max-w-none !w-screen !h-screen !rounded-none !border-0 !top-0 !left-0 !translate-x-0 !translate-y-0"
 				showCloseButton={false}
 			>
+				<DialogDescription>
+					Post {post.id} - {posts.length > 0 ? `${currentIndex + 1} of ${posts.length}` : 'Viewing post'}
+				</DialogDescription>
 				{modalContent}
 			</DialogContent>
 		</Dialog>
