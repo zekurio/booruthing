@@ -20,16 +20,24 @@ export function getFileExtension(url: string): string {
 
 export async function downloadPost(post: Post): Promise<void> {
 	try {
-		const response = await fetch(post.file_url);
+		const extension = getFileExtension(post.file_url);
+		const filename = `post_${post.id}.${extension}`;
+		
+		// Use our API route to proxy the download
+		const downloadUrl = `/api/download?${new URLSearchParams({
+			url: post.file_url,
+			filename: filename,
+		})}`;
+
+		const response = await fetch(downloadUrl);
 		if (!response.ok) throw new Error("Download failed");
 
 		const blob = await response.blob();
 		const url = URL.createObjectURL(blob);
-		const extension = getFileExtension(post.file_url);
 
 		const link = document.createElement("a");
 		link.href = url;
-		link.download = `post_${post.id}.${extension}`;
+		link.download = filename;
 		document.body.appendChild(link);
 		link.click();
 		document.body.removeChild(link);

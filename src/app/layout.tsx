@@ -19,7 +19,7 @@ const sourceCodePro = Source_Code_Pro({
 
 export const metadata: Metadata = {
 	title: "booruthing.",
-	description: "booruthing - a place to browse different boorus",
+	description: "booruthing - a better way to browse rule34",
 	viewport: {
 		width: "device-width",
 		initialScale: 1,

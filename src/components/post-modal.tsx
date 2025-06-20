@@ -24,12 +24,14 @@ export function PostModal({ isOpen, onClose, initialIndex }: PostModalProps) {
 	const [post, setPost] = useState<Post | null>(null);
 	const [isMobile, setIsMobile] = useState(false);
 	const [showDetails, setShowDetails] = useState(false);
+	const [viewportHeight, setViewportHeight] = useState(0);
 	
-	// Get all tags including hidden AI filter if enabled - same logic as PostGallery
+	// Get all tags including hidden AI filter if enabled (only when other tags are present)
 	const getAllTags = () => {
 		const allTags = [...searchState.tags];
 
-		if (searchState.filterAI) {
+		// Only apply AI filter when there are other search tags present
+		if (searchState.filterAI && searchState.tags.length > 0) {
 			const aiFilterTag: TagWithMode = {
 				tag: "ai_generated",
 				mode: "exclude",
@@ -134,15 +136,29 @@ export function PostModal({ isOpen, onClose, initialIndex }: PostModalProps) {
 		}
 	}, [currentIndex, posts]);
 
-	// Mobile detection
+	// Mobile detection and viewport height handling
 	useEffect(() => {
-		const checkMobile = () => {
-			setIsMobile(window.matchMedia("(max-width: 768px)").matches);
+		const updateViewport = () => {
+			const isMobileDevice = window.matchMedia("(max-width: 768px)").matches;
+			setIsMobile(isMobileDevice);
+			
+			// Set viewport height for mobile to handle address bar issues
+			if (isMobileDevice) {
+				const vh = window.innerHeight;
+				setViewportHeight(vh);
+				// Set CSS custom property for consistent viewport height
+				document.documentElement.style.setProperty('--vh', `${vh * 0.01}px`);
+			}
 		};
 
-		checkMobile();
-		window.addEventListener("resize", checkMobile);
-		return () => window.removeEventListener("resize", checkMobile);
+		updateViewport();
+		window.addEventListener("resize", updateViewport);
+		window.addEventListener("orientationchange", updateViewport);
+		
+		return () => {
+			window.removeEventListener("resize", updateViewport);
+			window.removeEventListener("orientationchange", updateViewport);
+		};
 	}, []);
 
 	// Computed values
@@ -205,7 +221,12 @@ export function PostModal({ isOpen, onClose, initialIndex }: PostModalProps) {
 	}
 
 	const modalContent = (
-		<div className="fixed inset-0 bg-background flex flex-col h-screen w-screen">
+		<div 
+			className="fixed inset-0 bg-background flex flex-col w-screen"
+			style={{
+				height: isMobile && viewportHeight > 0 ? `${viewportHeight}px` : '100vh'
+			}}
+		>
 			{/* Visually hidden title for accessibility */}
 			<VisuallyHidden.Root>
 				<DialogTitle>

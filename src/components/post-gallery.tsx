@@ -178,6 +178,8 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 		return () => window.removeEventListener("scroll", handleScroll);
 	}, []);
 
+
+
 	// Sync state changes to store
 	useEffect(() => {
 		setSearchState({ 
@@ -191,11 +193,12 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 		window.scrollTo({ top: 0, behavior: "smooth" });
 	};
 
-	// Get all tags including hidden AI filter if enabled
+	// Get all tags including hidden AI filter if enabled (only when other tags are present)
 	const getAllTags = () => {
 		const allTags = [...tags];
 
-		if (searchState.filterAI) {
+		// Only apply AI filter when there are other search tags present
+		if (searchState.filterAI && tags.length > 0) {
 			const aiFilterTag: TagWithMode = {
 				tag: "ai_generated",
 				mode: "exclude",
