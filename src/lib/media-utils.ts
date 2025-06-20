@@ -44,7 +44,6 @@ export async function downloadPost(post: Post): Promise<void> {
 		setTimeout(() => URL.revokeObjectURL(url), 100);
 	} catch (error) {
 		console.error("Download failed:", error);
-		// Fallback to opening in new tab
-		window.open(post.file_url, "_blank");
+		throw error;
 	}
-} 
+}

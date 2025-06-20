@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import type { Post } from "~/lib/types";
 import { downloadPost, getRule34PostUrl } from "~/lib/media-utils";
+import { toast } from "sonner";
 
 interface PostActionsProps {
 	post: Post;
@@ -18,8 +19,11 @@ export function PostActions({ post, size = "icon" }: PostActionsProps) {
 		try {
 			setIsDownloading(true);
 			await downloadPost(post);
+		} catch (error) {
+			toast.error("Download failed");
 		} finally {
 			setIsDownloading(false);
+			toast.success("Downloaded post");
 		}
 	};
 

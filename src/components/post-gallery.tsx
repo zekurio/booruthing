@@ -1,9 +1,8 @@
 "use client";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowUp, Cpu, Image as ImageIcon, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowUp, Image as ImageIcon, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import {
 	Select,
@@ -12,11 +11,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "~/components/ui/select";
-import { Toggle } from "~/components/ui/toggle";
 import { type Post, PostsApiResponse, type TagWithMode } from "~/lib/types";
 import { formatTagsForApi } from "~/lib/tag-utils";
 import { usePostStore } from "~/lib/post-store";
 import React from "react";
+import { PostModal } from "~/components/post-modal";
 
 interface PostCardProps {
 	post: Post;
@@ -25,24 +24,15 @@ interface PostCardProps {
 
 function PostCard({ post, onClick }: PostCardProps) {
 	const [imageError, setImageError] = useState(false);
-	const [isMobile, setIsMobile] = useState(false);
 
-	// Check if mobile on mount
-	useEffect(() => {
-		const checkMobile = () => {
-			setIsMobile(window.matchMedia("(max-width: 640px)").matches);
-		};
-
-		checkMobile();
-		window.addEventListener("resize", checkMobile);
-
-		return () => window.removeEventListener("resize", checkMobile);
-	}, []);
-
-	// Use sample_url for better quality on larger thumbnails
+	// Use sample_url for better quality on larger thumbnails, with robust fallbacks
 	const thumbnailSrc = imageError
 		? null
-		: post.sample_url || post.preview_url;
+		: post.file_url?.toLowerCase().includes('.mp4') || post.file_url?.toLowerCase().includes('.webm')
+			? post.preview_url
+			: post.file_url?.toLowerCase().includes('.jpeg') || post.file_url?.toLowerCase().includes('.jpg')
+				? post.sample_url
+				: post.file_url || post.sample_url || null;
 
 	return (
 		<div
@@ -58,7 +48,7 @@ function PostCard({ post, onClick }: PostCardProps) {
 					src={thumbnailSrc}
 					alt={`Post ${post.id}`}
 					className="w-full h-full object-cover"
-					loading="lazy"
+					loading="eager"
 					onError={() => setImageError(true)}
 				/>
 			)}
@@ -149,14 +139,16 @@ function PageSeparator({ pageNumber }: PageSeparatorProps) {
 }
 
 export function PostGallery({ tags }: { tags: TagWithMode[] }) {
-	const router = useRouter();
 	const { setPosts, searchState, setSearchState, setScrollPosition } = usePostStore();
 	const loadMoreRef = useRef<HTMLDivElement>(null);
 	const [sortOrder, setSortOrder] = useState<string>(searchState.sortOrder);
-	const [filterAI, setFilterAI] = useState(searchState.filterAI);
 	const [totalCount, setTotalCount] = useState<number | null>(searchState.totalCount);
 	const [isCountLoading, setIsCountLoading] = useState(false);
 	const [showBackToTop, setShowBackToTop] = useState(false);
+	
+	// Modal state
+	const [isModalOpen, setIsModalOpen] = useState(false);
+	const [selectedIndex, setSelectedIndex] = useState(0);
 
 	// Scroll handling for back-to-top button and position tracking
 	useEffect(() => {
@@ -185,11 +177,10 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 	useEffect(() => {
 		setSearchState({ 
 			sortOrder, 
-			filterAI, 
 			totalCount,
 			tags 
 		});
-	}, [sortOrder, filterAI, totalCount, tags, setSearchState]);
+	}, [sortOrder, totalCount, tags, setSearchState]);
 
 	const scrollToTop = () => {
 		window.scrollTo({ top: 0, behavior: "smooth" });
@@ -199,15 +190,15 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 	const getAllTags = () => {
 		const allTags = [...tags];
 
-		if (filterAI) {
+		if (searchState.filterAI) {
 			const aiFilterTag: TagWithMode = {
-				tag: "ai*",
+				tag: "ai_generated",
 				mode: "exclude",
 				id: "ai-filter-hidden",
 			};
 
 			// Only add if not already present
-			if (!allTags.some((tag) => tag.tag === "ai*" && tag.mode === "exclude")) {
+			if (!allTags.some((tag) => tag.tag === "ai_generated" && tag.mode === "exclude")) {
 				allTags.push(aiFilterTag);
 			}
 		}
@@ -289,12 +280,14 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 
 			try {
 				const result = PostsApiResponse.parse(jsonData);
+				console.log(`Fetched ${result.length} posts for page ${pageParam}`);
 				return result;
 			} catch (parseError) {
 				console.error("Zod parse error:", parseError);
 
 				// Fallback: try to use the data as-is if it's an array
 				if (Array.isArray(jsonData)) {
+					console.log(`Fallback: returning ${jsonData.length} posts for page ${pageParam}`);
 					return jsonData as Post[];
 				}
 
@@ -305,7 +298,19 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 		initialPageParam: 0,
 		getNextPageParam: (lastPage, allPages) => {
 			// Rule34 API returns empty array when no more results
+			console.log("getNextPageParam called:", { 
+				lastPageLength: lastPage?.length || 0, 
+				totalPages: allPages.length,
+				nextPage: allPages.length,
+				totalPostsLoaded: allPages.flat().length
+			});
+			// Rule34 returns 60 posts per page normally
+			// With AI filtering, we might get fewer, but if we get very few (< 10), 
+			// it likely means we're near the end
 			if (!lastPage || lastPage.length === 0) return undefined;
+			
+			// Continue loading if we got a reasonable number of posts
+			// This helps with AI filtering where some posts are excluded
 			return allPages.length;
 		},
 		staleTime: 1000 * 60 * 5, // 5 minutes
@@ -315,6 +320,12 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 	// Update the store when posts change
 	const allPosts = data?.pages.flat() || [];
 	useEffect(() => {
+		console.log("Query state:", { 
+			pagesCount: data?.pages.length || 0,
+			totalPosts: allPosts.length,
+			hasNextPage,
+			isFetchingNextPage 
+		});
 		if (allPosts.length > 0) {
 			setPosts(allPosts);
 		}
@@ -324,19 +335,25 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 
 	// Intersection Observer for infinite scrolling
 	useEffect(() => {
+		console.log("IntersectionObserver effect:", { hasNextPage, isFetchingNextPage });
 		if (!hasNextPage || isFetchingNextPage) return;
 
 		const observer = new IntersectionObserver(
 			(entries) => {
+				console.log("IntersectionObserver triggered:", entries[0].isIntersecting);
 				if (entries[0].isIntersecting) {
 					fetchNextPage();
 				}
 			},
-			{ threshold: 0.1 },
+			{ 
+				threshold: 0.1,
+				rootMargin: '200px' // Trigger earlier to account for fast scrolling
+			},
 		);
 
 		const currentRef = loadMoreRef.current;
 		if (currentRef) {
+			console.log("Observing loadMoreRef");
 			observer.observe(currentRef);
 		}
 
@@ -347,12 +364,47 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 		};
 	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+	// Fallback scroll-based infinite scroll trigger
+	useEffect(() => {
+		if (!hasNextPage || isFetchingNextPage) return;
+
+		let scrollTimeout: NodeJS.Timeout;
+		const handleScroll = () => {
+			clearTimeout(scrollTimeout);
+			scrollTimeout = setTimeout(() => {
+				const scrollHeight = document.documentElement.scrollHeight;
+				const scrollTop = window.scrollY;
+				const clientHeight = window.innerHeight;
+				
+				// If we're within 800px of the bottom, trigger loading
+				if (scrollHeight - (scrollTop + clientHeight) < 800) {
+					console.log("Fallback scroll trigger activated");
+					fetchNextPage();
+				}
+			}, 100); // Debounce scroll events
+		};
+
+		window.addEventListener("scroll", handleScroll);
+		return () => {
+			window.removeEventListener("scroll", handleScroll);
+			clearTimeout(scrollTimeout);
+		};
+	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
 	// Navigation handler
-	const handlePostClick = (index: number) => {
-		const post = allPosts[index];
-		if (post) {
-			router.push(`/post/${post.id}?index=${index}`);
+	const handlePostClick = (post: Post) => {
+		// Find the actual index of this post in the store's posts array
+		const actualIndex = allPosts.findIndex(p => p.id === post.id);
+		if (actualIndex !== -1) {
+			setSelectedIndex(actualIndex);
+			setIsModalOpen(true);
 		}
+	};
+
+	const handleModalClose = () => {
+		setIsModalOpen(false);
+		// Clear selected index to avoid stale state
+		setSelectedIndex(-1);
 	};
 
 	if (isLoading) {
@@ -397,28 +449,8 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 					)}
 				</div>
 				<div className="flex items-center gap-2 sm:gap-3">
-					<Toggle
-						pressed={filterAI}
-						onPressedChange={setFilterAI}
-						size="sm"
-						variant="outline"
-						aria-label="Toggle AI filter"
-						title={
-							filterAI ? "AI content is filtered" : "Click to filter AI content"
-						}
-						className={
-							filterAI
-								? "data-[state=on]:bg-red-100 data-[state=on]:text-red-800 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400"
-								: ""
-						}
-					>
-						<Cpu className="size-4" />
-						<span className="hidden sm:inline">
-							{filterAI ? "AI Filtered" : "Filter AI"}
-						</span>
-					</Toggle>
 					<Select value={sortOrder} onValueChange={setSortOrder}>
-						<SelectTrigger className="w-[140px] sm:w-[180px]">
+						<SelectTrigger className="h-10 w-[140px] sm:w-[180px]">
 							<SelectValue placeholder="Sort by..." />
 						</SelectTrigger>
 						<SelectContent>
@@ -434,28 +466,27 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 			</div>
 
 			{/* Larger grid layout with better spacing */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+			<div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4">
 				{data?.pages.map((page, pageIndex) => (
 					<React.Fragment key={pageIndex}>
-						{pageIndex > 0 && <PageSeparator pageNumber={pageIndex + 1} />}
-						{page.map((post, postIndex) => {
-							const globalIndex = data.pages
-								.slice(0, pageIndex)
-								.reduce((acc, p) => acc + p.length, 0) + postIndex;
-							return (
-								<PostCard 
-									key={post.id} 
-									post={post} 
-									onClick={() => handlePostClick(globalIndex)} 
-								/>
-							);
-						})}
+						{pageIndex > 0 && (
+							<div className="hidden sm:block col-span-full">
+								<PageSeparator pageNumber={pageIndex + 1} />
+							</div>
+						)}
+						{page.map((post) => (
+							<PostCard 
+								key={post.id} 
+								post={post} 
+								onClick={() => handlePostClick(post)} 
+							/>
+						))}
 					</React.Fragment>
 				))}
 			</div>
 
 			{/* Loading trigger for infinite scroll */}
-			<div ref={loadMoreRef} className="mt-8 flex justify-center">
+			<div ref={loadMoreRef} className="mt-8 mb-16 min-h-[100px] flex justify-center items-center">
 				{isFetchingNextPage && <LoadingState message="Loading more posts..." />}
 				{!hasNextPage && allPosts.length > 0 && (
 					<p className="text-muted-foreground text-sm py-8">
@@ -464,6 +495,10 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 							: "No more posts to load"}
 					</p>
 				)}
+				{/* Invisible trigger element for intersection observer */}
+				{hasNextPage && !isFetchingNextPage && (
+					<div className="h-px w-full" aria-hidden="true" />
+				)}
 			</div>
 
 			{/* Back to top button */}
@@ -471,12 +506,19 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 				<Button
 					onClick={scrollToTop}
 					size="icon"
-					className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-lg"
+					className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-none shadow-lg"
 					aria-label="Back to top"
 				>
-					<ArrowUp className="h-5 w-5" />
+					<ArrowUp className="size-5" />
 				</Button>
 			)}
+
+			{/* Post Modal */}
+			<PostModal 
+				isOpen={isModalOpen}
+				onClose={handleModalClose}
+				initialIndex={selectedIndex}
+			/>
 		</div>
 	);
 }

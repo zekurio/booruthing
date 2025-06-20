@@ -46,7 +46,7 @@ export default function RootLayout({
 					>
 						<SpeedInsights />
 						<Analytics />
-						<Toaster />
+						<Toaster position="top-center" richColors />
 						{children}
 					</ThemeProvider>
 				</QueryProvider>

@@ -3,19 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import Image from "next/image";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
-// Media Chrome React wrappers
-import {
-	MediaController,
-	MediaControlBar,
-	MediaPlayButton,
-	MediaMuteButton,
-	MediaVolumeRange,
-	MediaTimeRange,
-	MediaTimeDisplay,
-	MediaFullscreenButton,
-	MediaSeekBackwardButton,
-	MediaSeekForwardButton,
-} from "media-chrome/react";
+import { VideoPlayer } from "~/components/video-player";
 
 import type { Post } from "~/lib/types";
 import { getMediaUrl, isGifFile, isVideoFile } from "~/lib/media-utils";
@@ -164,54 +152,22 @@ export const PostMedia = forwardRef<
 			: getMediaUrl(post.file_url, false);
 
 		return (
-			<MediaController
-				style={{
-					width: "100%",
-					height: "100%",
-					backgroundColor: "black",
-					maxWidth: "100vw",
-					maxHeight: "100vh",
-					objectFit: "contain",
+			<VideoPlayer
+				ref={videoRef}
+				src={videoUrl}
+				poster={post.preview_url}
+				isMobile={isMobile}
+				onLoaded={handleMediaLoad}
+				onError={() => {
+					console.error("Video failed to load:", post.file_url);
+					if (isMobile && !useProxy) {
+						setUseProxy(true);
+					} else {
+						setVideoError(true);
+					}
 				}}
 				className={className || "max-w-full max-h-full"}
-			>
-				<video
-					slot="media"
-					ref={videoRef}
-					src={videoUrl}
-					autoPlay
-					muted
-					loop
-					playsInline
-					crossOrigin="anonymous"
-					poster={post.preview_url}
-					onLoadedMetadata={handleMediaLoad}
-					onError={() => {
-						console.error("Video failed to load:", post.file_url);
-
-						// If on mobile and not already using proxy, try proxy as fallback
-						if (isMobile && !useProxy) {
-							setUseProxy(true);
-						} else {
-							// If proxy also failed or not on mobile, show error
-							setVideoError(true);
-						}
-					}}
-					style={{ width: "100%", height: "100%", objectFit: "contain" }}
-				/>
-
-				{/* Basic mobile-friendly control bar */}
-				<MediaControlBar>
-					<MediaPlayButton />
-					<MediaSeekBackwardButton seekOffset={10} />
-					<MediaSeekForwardButton seekOffset={10} />
-					<MediaTimeRange />
-					<MediaTimeDisplay showDuration />
-					<MediaMuteButton />
-					<MediaVolumeRange />
-					<MediaFullscreenButton />
-				</MediaControlBar>
-			</MediaController>
+			/>
 		);
 	}
 
@@ -258,7 +214,9 @@ export const PostMedia = forwardRef<
 			return post.sample_url || post.preview_url;
 		}
 		// Always use file_url for full resolution
-		return post.file_url;
+		return post.file_url?.toLowerCase().includes('.jpeg') || post.file_url?.toLowerCase().includes('.jpg') 
+			? post.sample_url 
+			: post.file_url;
 	};
 
 	return (
@@ -273,7 +231,7 @@ export const PostMedia = forwardRef<
 			>
 				<Image
 					ref={ref as React.RefObject<HTMLImageElement>}
-					src={getImageSrc()}
+					src={getImageSrc() || ""}
 					alt={`Post ${post.id}`}
 					width={post.width}
 					height={post.height}
@@ -288,5 +246,3 @@ export const PostMedia = forwardRef<
 		</TransformWrapper>
 	);
 });
-
-PostMedia.displayName = "PostMedia"; 

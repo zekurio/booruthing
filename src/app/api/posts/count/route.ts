@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const LIMIT_PER_PAGE = 42;
-const MAX_PAGES_TO_CHECK = 1000; // Safety limit to prevent infinite crawling
+const LIMIT_PER_PAGE = 100;
 
 export async function GET(request: NextRequest) {
 	const searchParams = request.nextUrl.searchParams;
@@ -20,19 +19,13 @@ export async function GET(request: NextRequest) {
 
 	try {
 		let totalPosts = 0;
-		const _currentPage = 0;
-		const _hasMore = true;
+		let currentPage = 0;
+		let hasMore = true;
 
-		// Binary search to find the last page with posts
-		let low = 0;
-		let high = MAX_PAGES_TO_CHECK;
-		let lastPageWithPosts = 0;
-
-		while (low <= high) {
-			const mid = Math.floor((low + high) / 2);
-
+		// Linear search until we find a page with fewer posts than the limit
+		while (hasMore) {
 			const response = await fetch(
-				`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagsWithSort)}&pid=${mid}&limit=${LIMIT_PER_PAGE}`,
+				`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagsWithSort)}&pid=${currentPage}&limit=${LIMIT_PER_PAGE}`,
 				{
 					method: "GET",
 					headers: {
@@ -48,46 +41,32 @@ export async function GET(request: NextRequest) {
 			const data = await response.text();
 
 			if (!data.trim()) {
-				// Empty response, this page has no posts
-				high = mid - 1;
+				// Empty response, no more posts
+				hasMore = false;
 			} else {
 				try {
 					const jsonData = JSON.parse(data);
-					if (Array.isArray(jsonData) && jsonData.length > 0) {
-						lastPageWithPosts = mid;
-						low = mid + 1;
+					if (Array.isArray(jsonData)) {
+						const postsOnThisPage = jsonData.length;
+						
+						if (postsOnThisPage === 0) {
+							// No posts on this page, we're done
+							hasMore = false;
+						} else if (postsOnThisPage < LIMIT_PER_PAGE) {
+							// Fewer posts than limit, this is the last page
+							totalPosts = currentPage * LIMIT_PER_PAGE + postsOnThisPage;
+							hasMore = false;
+						} else {
+							// Full page, continue to next page
+							currentPage++;
+						}
 					} else {
-						high = mid - 1;
+						// Invalid response format
+						hasMore = false;
 					}
 				} catch {
-					high = mid - 1;
-				}
-			}
-		}
-
-		// Now count posts on the last page to get exact total
-		const lastPageResponse = await fetch(
-			`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagsWithSort)}&pid=${lastPageWithPosts}&limit=${LIMIT_PER_PAGE}`,
-			{
-				method: "GET",
-				headers: {
-					"User-Agent": "Mozilla/5.0 (compatible; PostCounter/1.0)",
-				},
-			},
-		);
-
-		if (lastPageResponse.ok) {
-			const lastPageData = await lastPageResponse.text();
-			if (lastPageData.trim()) {
-				try {
-					const lastPageJson = JSON.parse(lastPageData);
-					if (Array.isArray(lastPageJson)) {
-						const postsOnLastPage = lastPageJson.length;
-						totalPosts = lastPageWithPosts * LIMIT_PER_PAGE + postsOnLastPage;
-					}
-				} catch {
-					// Fallback to estimate
-					totalPosts = lastPageWithPosts * LIMIT_PER_PAGE;
+					// Parse error, stop searching
+					hasMore = false;
 				}
 			}
 		}
@@ -95,7 +74,7 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json({
 			totalPosts,
 			isEstimate: false,
-			pagesChecked: lastPageWithPosts + 1,
+			pagesChecked: currentPage + 1,
 		});
 	} catch (error) {
 		console.error("Error counting posts:", error);
