@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import {
 	forwardRef,
+	useCallback,
 	useEffect,
 	useImperativeHandle,
 	useRef,
@@ -45,6 +46,7 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 	) => {
 		const videoRef = useRef<HTMLVideoElement>(null);
 		const containerRef = useRef<HTMLDivElement>(null);
+		const hideTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
 		// Expose video element ref
 		useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
@@ -56,6 +58,45 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 		const [progress, setProgress] = useState(0);
 		const [duration, setDuration] = useState(0);
 		const [isFullscreen, setIsFullscreen] = useState(false);
+		const [showControls, setShowControls] = useState(false);
+
+		// Auto-hide controls functionality
+		const resetHideTimer = useCallback(() => {
+			if (hideTimeoutRef.current) {
+				clearTimeout(hideTimeoutRef.current);
+			}
+			setShowControls(true);
+			hideTimeoutRef.current = setTimeout(() => {
+				setShowControls(false);
+			}, 3000); // Hide after 3 seconds of inactivity
+		}, []);
+
+		const handleMouseMove = useCallback(() => {
+			resetHideTimer();
+		}, [resetHideTimer]);
+
+		const handleMouseLeave = useCallback(() => {
+			if (hideTimeoutRef.current) {
+				clearTimeout(hideTimeoutRef.current);
+			}
+			hideTimeoutRef.current = setTimeout(() => {
+				setShowControls(false);
+			}, 1000); // Hide faster when mouse leaves
+		}, []);
+
+		// Clean up timer on unmount
+		useEffect(() => {
+			return () => {
+				if (hideTimeoutRef.current) {
+					clearTimeout(hideTimeoutRef.current);
+				}
+			};
+		}, []);
+
+		// Show controls initially
+		useEffect(() => {
+			resetHideTimer();
+		}, [resetHideTimer]);
 
 		// Update progress timer
 		useEffect(() => {
@@ -216,6 +257,7 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 				video.pause();
 				setIsPlaying(false);
 			}
+			resetHideTimer(); // Reset timer on interaction
 		};
 
 		// Mute toggle
@@ -225,6 +267,7 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 			const newMuted = !isMuted;
 			video.muted = newMuted;
 			setIsMuted(newMuted);
+			resetHideTimer(); // Reset timer on interaction
 		};
 
 		// Handle volume change
@@ -239,6 +282,7 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 					setIsMuted(false);
 				}
 			}
+			resetHideTimer(); // Reset timer on interaction
 		};
 
 		// Seek handler
@@ -249,6 +293,7 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 				video.currentTime = time;
 				setProgress(time);
 			}
+			resetHideTimer(); // Reset timer on interaction
 		};
 
 		// Fullscreen handler
@@ -269,6 +314,12 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 					(document as any).msExitFullscreen;
 				if (exit) exit.call(document);
 			}
+			resetHideTimer(); // Reset timer on interaction
+		};
+
+		// Handle context menu - show controls when right-clicking
+		const handleContextMenu = () => {
+			resetHideTimer(); // Show controls when context menu appears
 		};
 
 		// Update mute/volume defaults on mount
@@ -296,6 +347,8 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 				ref={containerRef}
 				className={`relative w-full h-full bg-black flex items-center justify-center ${className || ""}`}
 				style={{ maxWidth: "100vw", maxHeight: "100vh" }}
+				onMouseMove={handleMouseMove}
+				onMouseLeave={handleMouseLeave}
 			>
 				<video
 					ref={videoRef}
@@ -309,10 +362,15 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 					onLoadedMetadata={onLoaded}
 					onError={onError}
 					onClick={togglePlay}
+					onContextMenu={handleContextMenu}
 				/>
 
 				{/* Controls overlay */}
-				<div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-3 pt-6 flex flex-col gap-1 select-none">
+				<div 
+					className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-3 pt-6 flex flex-col gap-1 select-none transition-opacity duration-300 ${
+						showControls ? 'opacity-100' : 'opacity-0'
+					}`}
+				>
 					{/* Seek */}
 					{duration > 0 && (
 						<Slider
