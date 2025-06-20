@@ -1,6 +1,6 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { AlertCircle, ArrowUp, Image as ImageIcon, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -28,15 +28,24 @@ function PostCard({ post, onClick }: PostCardProps) {
 	// Use sample_url for better quality on larger thumbnails, with robust fallbacks
 	const thumbnailSrc = imageError
 		? null
-		: post.file_url?.toLowerCase().includes('.mp4') || post.file_url?.toLowerCase().includes('.webm')
+		: post.file_url?.includes('.webm') || post.file_url?.includes('.mp4')
 			? post.preview_url
-			: post.file_url?.toLowerCase().includes('.jpeg') || post.file_url?.toLowerCase().includes('.jpg')
-				? post.sample_url
-				: post.file_url || post.sample_url || null;
+			: post.sample_url || null;
+
+	// Calculate aspect ratio with reasonable bounds for display
+	const originalAspectRatio = post.width / post.height;
+	// Limit extreme ratios for better layout but be more permissive
+	const minAspectRatio = 0.4; // Very tall portraits
+	const maxAspectRatio = 3.0; // Very wide landscapes
+	const clampedAspectRatio = Math.max(minAspectRatio, Math.min(maxAspectRatio, originalAspectRatio));
+	
+	// Determine if this needs aspect ratio adjustment
+	const isAspectRatioClamped = originalAspectRatio !== clampedAspectRatio;
 
 	return (
 		<div
-			className="group relative w-full aspect-square bg-muted overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl"
+			className="group relative w-full bg-muted overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl rounded-lg break-inside-avoid mb-2"
+			style={{ aspectRatio: clampedAspectRatio }}
 			onClick={onClick}
 		>
 			{!thumbnailSrc ? (
@@ -47,13 +56,26 @@ function PostCard({ post, onClick }: PostCardProps) {
 				<img
 					src={thumbnailSrc}
 					alt={`Post ${post.id}`}
-					className="w-full h-full object-cover"
+					className={`w-full h-full transition-transform duration-300 group-hover:scale-105 ${
+						isAspectRatioClamped 
+							? 'object-cover' 
+							: 'object-contain bg-muted'
+					}`}
 					loading="eager"
 					onError={() => setImageError(true)}
 				/>
 			)}
-			{/* Dark overlay for text visibility - no gradient, just solid dark */}
-			<div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+			
+			{/* Aspect ratio indicator for clamped ratios */}
+			{isAspectRatioClamped && (
+				<div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+					{originalAspectRatio.toFixed(2)}:1
+				</div>
+			)}
+			
+			{/* Dark overlay for text visibility */}
+			<div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+			
 			{/* Post info on hover */}
 			<div className="absolute bottom-0 left-0 right-0 p-3 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
 				<div className="font-bold text-sm">POST #{post.id}</div>
@@ -122,28 +144,11 @@ function EmptyState({ message = "No posts found" }: EmptyStateProps) {
 	);
 }
 
-interface PageSeparatorProps {
-	pageNumber: number;
-}
-
-function PageSeparator({ pageNumber }: PageSeparatorProps) {
-	return (
-		<div className="col-span-full flex items-center justify-center py-4 my-4">
-			<div className="flex-1 h-px bg-border" />
-			<span className="px-4 text-sm text-muted-foreground font-medium">
-				Page {pageNumber}
-			</span>
-			<div className="flex-1 h-px bg-border" />
-		</div>
-	);
-}
-
 export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 	const { setPosts, searchState, setSearchState, setScrollPosition } = usePostStore();
 	const loadMoreRef = useRef<HTMLDivElement>(null);
 	const [sortOrder, setSortOrder] = useState<string>(searchState.sortOrder);
 	const [totalCount, setTotalCount] = useState<number | null>(searchState.totalCount);
-	const [isCountLoading, setIsCountLoading] = useState(false);
 	const [showBackToTop, setShowBackToTop] = useState(false);
 	
 	// Modal state
@@ -209,32 +214,72 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 	const effectiveTags = getAllTags();
 	const effectiveTagsString = formatTagsForApi(effectiveTags);
 
-	// Fetch total count when tags or sort changes
-	useEffect(() => {
-		if (!effectiveTagsString.trim()) return;
+	// Client-side post counting using Rule34 API directly
+	const { data: countData, isLoading: isCountLoading } = useQuery({
+		queryKey: ["postCount", effectiveTagsString, sortOrder],
+		queryFn: async (): Promise<number> => {
+			if (!effectiveTagsString.trim()) return 0;
 
-		setIsCountLoading(true);
-		setTotalCount(null);
+			const tagsWithSort = `${effectiveTagsString} sort:${sortOrder}`;
+			const LIMIT_PER_PAGE = 100;
+			let totalPosts = 0;
+			let currentPage = 0;
+			let hasMore = true;
 
-		const fetchCount = async () => {
-			try {
-				const response = await fetch(
-					`/api/posts/count?tags=${encodeURIComponent(effectiveTagsString)}&sort=${encodeURIComponent(sortOrder)}`,
-				);
-
-				if (response.ok) {
-					const data = await response.json();
-					setTotalCount(data.totalPosts);
+			// Linear search through pages until we find a page with fewer posts than the limit
+			while (hasMore) {
+				const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagsWithSort)}&pid=${currentPage}&limit=${LIMIT_PER_PAGE}`;
+				
+				const response = await fetch(apiUrl);
+				if (!response.ok) {
+					throw new Error(`API returned ${response.status}`);
 				}
-			} catch (error) {
-				console.error("Failed to fetch post count:", error);
-			} finally {
-				setIsCountLoading(false);
-			}
-		};
 
-		fetchCount();
-	}, [effectiveTagsString, sortOrder]);
+				const dataText = await response.text();
+				if (!dataText.trim()) {
+					// Empty response, no more posts
+					hasMore = false;
+				} else {
+					try {
+						const jsonData = JSON.parse(dataText);
+						if (Array.isArray(jsonData)) {
+							const postsOnThisPage = jsonData.length;
+							
+							if (postsOnThisPage === 0) {
+								// No posts on this page, we're done
+								hasMore = false;
+							} else if (postsOnThisPage < LIMIT_PER_PAGE) {
+								// Fewer posts than limit, this is the last page
+								totalPosts = currentPage * LIMIT_PER_PAGE + postsOnThisPage;
+								hasMore = false;
+							} else {
+								// Full page, continue to next page
+								currentPage++;
+							}
+						} else {
+							// Invalid response format
+							hasMore = false;
+						}
+					} catch {
+						// Parse error, stop searching
+						hasMore = false;
+					}
+				}
+			}
+
+			return totalPosts;
+		},
+		enabled: !!effectiveTagsString.trim(),
+		staleTime: 1000 * 60 * 10, // 10 minutes - counts change less frequently
+		retry: 1,
+	});
+
+	// Update totalCount when query completes
+	useEffect(() => {
+		if (countData !== undefined) {
+			setTotalCount(countData);
+		}
+	}, [countData]);
 
 	const {
 		data,
@@ -250,68 +295,54 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 		queryFn: async ({ pageParam = 0 }): Promise<Post[]> => {
 			if (!effectiveTagsString.trim()) return [];
 
-			console.log(
-				"Fetching posts with tags:",
-				effectiveTagsString,
-				"sort:",
-				sortOrder,
-				"page:",
-				pageParam,
-			);
+			// Build Rule34 API URL directly in the browser
+			const tagsWithSort = `${effectiveTagsString} sort:${sortOrder}`;
+			const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagsWithSort)}&pid=${pageParam}&limit=100`;
 
-			const response = await fetch(
-				`/api/posts?tags=${encodeURIComponent(effectiveTagsString)}&page=${pageParam}&sort=${encodeURIComponent(sortOrder)}`,
-				{
-					method: "GET",
-					headers: {
-						Accept: "application/json",
-					},
-				},
-			);
+			console.log("Fetching posts (client-side) →", { apiUrl });
+
+			const response = await fetch(apiUrl);
 
 			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}));
-				throw new Error(
-					errorData.error || `HTTP ${response.status}: ${response.statusText}`,
-				);
+				// Attempt to read JSON error if available
+				let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+				try {
+					const errJson = await response.json();
+					if (errJson?.error) errorMessage = errJson.error;
+				} catch {
+					// ignore parse errors
+				}
+				throw new Error(errorMessage);
 			}
 
-			const jsonData = await response.json();
+			const dataText = await response.text();
+
+			// Handle empty body which signals no more posts
+			if (!dataText.trim()) return [];
+
+			let jsonData: unknown;
+			try {
+				jsonData = JSON.parse(dataText);
+			} catch (parseError) {
+				console.error("Failed to parse JSON from Rule34 API:", parseError);
+				throw new Error("Invalid JSON response from upstream API");
+			}
 
 			try {
 				const result = PostsApiResponse.parse(jsonData);
-				console.log(`Fetched ${result.length} posts for page ${pageParam}`);
 				return result;
-			} catch (parseError) {
-				console.error("Zod parse error:", parseError);
-
-				// Fallback: try to use the data as-is if it's an array
-				if (Array.isArray(jsonData)) {
-					console.log(`Fallback: returning ${jsonData.length} posts for page ${pageParam}`);
-					return jsonData as Post[];
-				}
-
-				throw new Error("Invalid response format from API");
+			} catch (zodError) {
+				console.error("Zod parse error, falling back to raw array", zodError);
+				if (Array.isArray(jsonData)) return jsonData as Post[];
+				throw new Error("Unexpected response structure from Rule34 API");
 			}
 		},
 		enabled: !!effectiveTagsString.trim(),
 		initialPageParam: 0,
 		getNextPageParam: (lastPage, allPages) => {
-			// Rule34 API returns empty array when no more results
-			console.log("getNextPageParam called:", { 
-				lastPageLength: lastPage?.length || 0, 
-				totalPages: allPages.length,
-				nextPage: allPages.length,
-				totalPostsLoaded: allPages.flat().length
-			});
-			// Rule34 returns 60 posts per page normally
-			// With AI filtering, we might get fewer, but if we get very few (< 10), 
-			// it likely means we're near the end
+			// Rule34 API returns an empty array when no more results
 			if (!lastPage || lastPage.length === 0) return undefined;
-			
-			// Continue loading if we got a reasonable number of posts
-			// This helps with AI filtering where some posts are excluded
-			return allPages.length;
+			return allPages.length; // Next pid equals number of pages already fetched
 		},
 		staleTime: 1000 * 60 * 5, // 5 minutes
 		retry: 2,
@@ -465,15 +496,13 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 				</div>
 			</div>
 
-			{/* Larger grid layout with better spacing */}
-			<div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4">
+			{/* Masonry-style layout with tight spacing */}
+			<div 
+				className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5 2xl:columns-6 gap-2 space-y-0"
+				style={{ columnFill: 'balance' }}
+			>
 				{data?.pages.map((page, pageIndex) => (
 					<React.Fragment key={pageIndex}>
-						{pageIndex > 0 && (
-							<div className="hidden sm:block col-span-full">
-								<PageSeparator pageNumber={pageIndex + 1} />
-							</div>
-						)}
 						{page.map((post) => (
 							<PostCard 
 								key={post.id} 

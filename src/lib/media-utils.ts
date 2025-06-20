@@ -8,12 +8,7 @@ export function isGifFile(url: string): boolean {
 	return !!url.match(/\.gif$/i);
 }
 
-export function getMediaUrl(url: string, forceProxy = false): string {
-	if ((isVideoFile(url) || forceProxy) && url) {
-		return `/api/proxy?url=${encodeURIComponent(url)}`;
-	}
-	return url;
-}
+// Note: getMediaUrl function removed - we now use direct URLs only
 
 export function getRule34PostUrl(postId: number): string {
 	return `https://rule34.xxx/index.php?page=post&s=view&id=${postId}`;
@@ -25,9 +20,7 @@ export function getFileExtension(url: string): string {
 
 export async function downloadPost(post: Post): Promise<void> {
 	try {
-		const response = await fetch(
-			`/api/proxy?url=${encodeURIComponent(post.file_url)}`
-		);
+		const response = await fetch(post.file_url);
 		if (!response.ok) throw new Error("Download failed");
 
 		const blob = await response.blob();

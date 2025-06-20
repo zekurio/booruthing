@@ -6,7 +6,7 @@ import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import { VideoPlayer } from "~/components/video-player";
 
 import type { Post } from "~/lib/types";
-import { getMediaUrl, isGifFile, isVideoFile } from "~/lib/media-utils";
+import { isGifFile, isVideoFile } from "~/lib/media-utils";
 
 interface PostMediaProps {
 	post: Post;
@@ -21,7 +21,6 @@ export const PostMedia = forwardRef<
 >(({ post, onLoad, className, isMobile = false }, ref) => {
 	const [videoError, setVideoError] = useState(false);
 	const [imageError, setImageError] = useState(false);
-	const [useProxy, setUseProxy] = useState(false);
 	const videoRef = useRef<HTMLVideoElement>(null);
 
 	const isVideo = isVideoFile(post.file_url);
@@ -147,24 +146,16 @@ export const PostMedia = forwardRef<
 	};
 
 	if (isVideo && !videoError) {
-		const videoUrl = useProxy
-			? `/api/proxy?url=${encodeURIComponent(post.file_url)}`
-			: getMediaUrl(post.file_url, false);
-
 		return (
 			<VideoPlayer
 				ref={videoRef}
-				src={videoUrl}
+				src={post.file_url}
 				poster={post.preview_url}
 				isMobile={isMobile}
 				onLoaded={handleMediaLoad}
 				onError={() => {
 					console.error("Video failed to load:", post.file_url);
-					if (isMobile && !useProxy) {
-						setUseProxy(true);
-					} else {
-						setVideoError(true);
-					}
+					setVideoError(true);
 				}}
 				className={className || "max-w-full max-h-full"}
 			/>
@@ -213,10 +204,8 @@ export const PostMedia = forwardRef<
 			// On error, fallback to sample_url, then preview_url
 			return post.sample_url || post.preview_url;
 		}
-		// Always use file_url for full resolution
-		return post.file_url?.toLowerCase().includes('.jpeg') || post.file_url?.toLowerCase().includes('.jpg') 
-			? post.sample_url 
-			: post.file_url;
+		// Use file_url for full resolution, with fallback to sample_url if file_url fails
+		return post.file_url || post.sample_url;
 	};
 
 	return (

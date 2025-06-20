@@ -59,25 +59,36 @@ export function PostModal({ isOpen, onClose, initialIndex }: PostModalProps) {
 		queryFn: async ({ pageParam = 0 }): Promise<Post[]> => {
 			if (!effectiveTagsString.trim()) return [];
 
-			const response = await fetch(
-				`/api/posts?tags=${encodeURIComponent(effectiveTagsString)}&page=${pageParam}&sort=${encodeURIComponent(searchState.sortOrder)}`,
-				{
-					method: "GET",
-					headers: {
-						Accept: "application/json",
-					},
-				},
-			);
+			// Build Rule34 API URL directly in the browser
+			const tagsWithSort = `${effectiveTagsString} sort:${searchState.sortOrder}`;
+			const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagsWithSort)}&pid=${pageParam}&limit=100`;
+
+			const response = await fetch(apiUrl);
 
 			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}));
-				throw new Error(
-					errorData.error || `HTTP ${response.status}: ${response.statusText}`,
-				);
+				let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+				try {
+					const errJson = await response.json();
+					if (errJson?.error) errorMessage = errJson.error;
+				} catch {
+					// ignore parse errors
+				}
+				throw new Error(errorMessage);
 			}
 
-			const jsonData = await response.json();
-			return jsonData as Post[];
+			const dataText = await response.text();
+			if (!dataText.trim()) return [];
+
+			let jsonData: unknown;
+			try {
+				jsonData = JSON.parse(dataText);
+			} catch (parseError) {
+				console.error("Failed to parse JSON from Rule34 API:", parseError);
+				throw new Error("Invalid JSON response from upstream API");
+			}
+
+			if (Array.isArray(jsonData)) return jsonData as Post[];
+			throw new Error("Unexpected response structure from Rule34 API");
 		},
 		enabled: !!effectiveTagsString.trim() && searchState.tags.length > 0,
 		initialPageParam: 0,

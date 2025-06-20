@@ -29,10 +29,6 @@ export default function SearchPage() {
 
 	const handleAIFilterChange = (pressed: boolean) => {
 		setSearchState({ filterAI: pressed });
-		// Suspend search when AI filter changes - user needs to search again
-		if (isSearched) {
-			setIsSearched(false);
-		}
 	};
 
 	const removeTag = (tagId: string) => {
