@@ -205,7 +205,7 @@ export const PostMedia = forwardRef<
 			return post.sample_url || post.preview_url;
 		}
 		// Use file_url for full resolution, with fallback to sample_url if file_url fails
-		return post.file_url || post.sample_url;
+		return post.sample_url || post.file_url;
 	};
 
 	const handleContextMenu = (e: React.MouseEvent) => {

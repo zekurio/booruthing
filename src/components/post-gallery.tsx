@@ -24,12 +24,20 @@ interface PostCardProps {
 
 function PostCard({ post, onClick }: PostCardProps) {
 	const [imageError, setImageError] = useState(false);
+	const [videoThumbnailError, setVideoThumbnailError] = useState(false);
+
+	// Reset error states when post changes
+	useEffect(() => {
+		setImageError(false);
+		setVideoThumbnailError(false);
+	}, [post.id]);
 
 	// Use sample_url for better quality on larger thumbnails, with robust fallbacks
+	const isVideo = post.file_url?.includes('.webm') || post.file_url?.includes('.mp4');
 	const thumbnailSrc = imageError
 		? null
-		: post.file_url?.includes('.webm') || post.file_url?.includes('.mp4')
-			? post.preview_url
+		: isVideo
+			? (videoThumbnailError ? post.preview_url : post.sample_url || post.preview_url)
 			: post.sample_url || null;
 
 	// Calculate aspect ratio with reasonable bounds for display
@@ -62,7 +70,15 @@ function PostCard({ post, onClick }: PostCardProps) {
 							: 'object-contain bg-muted'
 					}`}
 					loading="eager"
-					onError={() => setImageError(true)}
+					onError={() => {
+						if (isVideo && !videoThumbnailError) {
+							// First error for video - try preview_url as fallback
+							setVideoThumbnailError(true);
+						} else {
+							// Final fallback - hide image
+							setImageError(true);
+						}
+					}}
 				/>
 			)}
 			
