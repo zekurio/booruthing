@@ -191,6 +191,12 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
 		const addManualTag = (tagText: string, andSearch = false) => {
 			if (tags.some((tag) => tag.tag === tagText)) {
 				setSearch("");
+				// Keep focus even when tag already exists
+				setTimeout(() => {
+					if (ref && 'current' in ref && ref.current) {
+						ref.current.focus();
+					}
+				}, 0);
 				if (andSearch) {
 					onSearch();
 				}
@@ -207,6 +213,13 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
 			setShowSuggestions(false);
 			setSelectedIndex(-1);
 
+			// Keep focus on mobile after adding tag
+			setTimeout(() => {
+				if (ref && 'current' in ref && ref.current) {
+					ref.current.focus();
+				}
+			}, 0);
+
 			if (andSearch) {
 				onSearch();
 			}
@@ -217,6 +230,12 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
 				setSearch("");
 				setShowSuggestions(false);
 				setSelectedIndex(-1);
+				// Keep focus even when tag already exists
+				setTimeout(() => {
+					if (ref && 'current' in ref && ref.current) {
+						ref.current.focus();
+					}
+				}, 0);
 				return;
 			}
 			const newTag: TagWithMode = {
@@ -229,6 +248,13 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
 			setSearch("");
 			setShowSuggestions(false);
 			setSelectedIndex(-1);
+
+			// Keep focus on mobile after selecting suggestion
+			setTimeout(() => {
+				if (ref && 'current' in ref && ref.current) {
+					ref.current.focus();
+				}
+			}, 0);
 		};
 
 		return (
