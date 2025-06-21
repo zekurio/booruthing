@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Loader2, Tags, ChevronUp } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { Switch } from "~/components/ui/switch";
 import { PostMedia } from "~/components/post-media";
 import { PostActions } from "~/components/post-actions";
 import { TagDisplay } from "~/components/tag-display";
@@ -10,6 +11,7 @@ import { usePostStore } from "~/lib/post-store";
 import type { Post, TagWithMode } from "~/lib/types";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { formatTagsForApi } from "~/lib/tag-utils";
+import { isGifFile, isVideoFile } from "~/lib/media-utils";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "~/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
@@ -25,6 +27,7 @@ export function PostModal({ isOpen, onClose, initialIndex }: PostModalProps) {
 	const [isMobile, setIsMobile] = useState(false);
 	const [showDetails, setShowDetails] = useState(false);
 	const [viewportHeight, setViewportHeight] = useState(0);
+	const [useHighQuality, setUseHighQuality] = useState(false);
 	
 	// Get all tags including hidden AI filter if enabled (only when other tags are present)
 	const getAllTags = () => {
@@ -165,6 +168,9 @@ export function PostModal({ isOpen, onClose, initialIndex }: PostModalProps) {
 	const tagList = post?.tags ? post.tags.split(" ").filter(Boolean) : [];
 	const hasNext = currentIndex < posts.length - 1 || (hasNextPage && searchState.tags.length > 0);
 	const hasPrevious = currentIndex > 0;
+	const isVideo = post ? isVideoFile(post.file_url) : false;
+	const isGif = post ? isGifFile(post.file_url) : false;
+	const showQualitySwitch = post && !isVideo && !isGif;
 
 	// Navigation handlers
 	const handleNavigate = async (direction: 'next' | 'previous') => {
@@ -249,13 +255,6 @@ export function PostModal({ isOpen, onClose, initialIndex }: PostModalProps) {
 								)}
 							</span>
 						</div>
-						{post.score !== undefined && (
-							<div className="bg-muted/80 backdrop-blur-sm rounded-none px-3 py-1.5">
-								<span className="text-foreground text-sm font-medium">
-									SCORE: {post.score}
-								</span>
-							</div>
-						)}
 					</div>
 
 					{/* Close button - right side */}
@@ -276,6 +275,7 @@ export function PostModal({ isOpen, onClose, initialIndex }: PostModalProps) {
 					post={post}
 					className="max-w-full max-h-full object-contain"
 					isMobile={isMobile}
+					useHighQuality={useHighQuality}
 				/>
 				
 				{/* Navigation buttons */}
@@ -333,7 +333,21 @@ export function PostModal({ isOpen, onClose, initialIndex }: PostModalProps) {
 						/>
 					</Button>
 
-					<PostActions post={post} />
+					<div className="flex items-center gap-3">
+						{showQualitySwitch && (
+							<div className="flex items-center gap-2">
+								<span className="text-xs text-muted-foreground">Low</span>
+								<Switch
+									checked={useHighQuality}
+									onCheckedChange={setUseHighQuality}
+									className="data-[state=checked]:bg-primary"
+								/>
+								<span className="text-xs text-muted-foreground">High</span>
+							</div>
+						)}
+						
+						<PostActions post={post} />
+					</div>
 				</div>
 
 				{/* Tag details */}

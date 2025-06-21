@@ -13,12 +13,13 @@ interface PostMediaProps {
 	onLoad?: () => void;
 	className?: string;
 	isMobile?: boolean;
+	useHighQuality?: boolean;
 }
 
 export const PostMedia = forwardRef<
 	HTMLImageElement | HTMLVideoElement,
 	PostMediaProps
->(({ post, onLoad, className, isMobile = false }, ref) => {
+>(({ post, onLoad, className, isMobile = false, useHighQuality = false }, ref) => {
 	const [videoError, setVideoError] = useState(false);
 	const [imageError, setImageError] = useState(false);
 	const videoRef = useRef<HTMLVideoElement>(null);
@@ -204,8 +205,12 @@ export const PostMedia = forwardRef<
 			// On error, fallback to sample_url, then preview_url
 			return post.sample_url || post.preview_url;
 		}
-		// Use file_url for full resolution, with fallback to sample_url if file_url fails
-		return post.sample_url || post.file_url;
+		// Use high quality (file_url) or low quality (sample_url) based on setting
+		if (useHighQuality) {
+			return post.file_url || post.sample_url;
+		} else {
+			return post.sample_url || post.file_url;
+		}
 	};
 
 	const handleContextMenu = (e: React.MouseEvent) => {

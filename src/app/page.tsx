@@ -5,8 +5,9 @@ import { HelpCircle } from "lucide-react";
 import { Logo } from "~/components/logo";
 import { ModeToggle } from "~/components/mode-toggle";
 import { PostGallery } from "~/components/post-gallery";
-import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
+import { TooltipProvider } from "~/components/ui/tooltip";
 import { Button } from "~/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "~/components/ui/dialog";
 import type { TagWithMode } from "~/lib/types";
 import { SearchBar } from "~/components/searchbar";
 import { usePostStore } from "~/lib/post-store";
@@ -15,6 +16,7 @@ export default function SearchPage() {
 	const { searchState, setSearchState } = usePostStore();
 	const [addedTags, setAddedTags] = useState<TagWithMode[]>(searchState.tags);
 	const [isSearched, setIsSearched] = useState(searchState.tags.length > 0);
+	const [showHelpModal, setShowHelpModal] = useState(false);
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	const handleAddTag = (tag: TagWithMode) => {
@@ -55,8 +57,8 @@ export default function SearchPage() {
 		<TooltipProvider>
 			<div className="flex flex-col items-center min-h-screen">
 				<div className="absolute top-4 right-4 flex items-center gap-2">
-					<Tooltip>
-						<TooltipTrigger asChild>
+					<Dialog open={showHelpModal} onOpenChange={setShowHelpModal}>
+						<DialogTrigger asChild>
 							<Button
 								variant="ghost"
 								size="sm"
@@ -64,15 +66,34 @@ export default function SearchPage() {
 							>
 								<HelpCircle className="size-4" />
 							</Button>
-						</TooltipTrigger>
-						<TooltipContent side="left" className="max-w-xs text-sm">
-							<div className="space-y-2">
-								<p><strong>Tag System:</strong> Use the +/- button to switch between include/exclude modes. Click on existing tags to toggle their mode.</p>
-								<p><strong>AI Filter:</strong> Click the sparkles icon to filter out AI-generated content.</p>
-								<p><strong>Sorting:</strong> When viewing search results, use the sorting options to organize posts by date, score, or other criteria.</p>
+						</DialogTrigger>
+						<DialogContent className="sm:max-w-md">
+							<DialogTitle>Help & Guide</DialogTitle>
+							<DialogDescription>
+								Learn how to use the search features and navigation
+							</DialogDescription>
+							<div className="space-y-4">
+								<div>
+									<h4 className="font-semibold text-sm mb-2">Tag System</h4>
+									<p className="text-sm text-muted-foreground">
+										Use the +/- button to switch between include/exclude modes. Click on existing tags to toggle their mode.
+									</p>
+								</div>
+								<div>
+									<h4 className="font-semibold text-sm mb-2">AI Filter</h4>
+									<p className="text-sm text-muted-foreground">
+										Click the sparkles icon to filter out AI-generated content.
+									</p>
+								</div>
+								<div>
+									<h4 className="font-semibold text-sm mb-2">Sorting</h4>
+									<p className="text-sm text-muted-foreground">
+										When viewing search results, use the sorting options to organize posts by date, score, or other criteria.
+									</p>
+								</div>
 							</div>
-						</TooltipContent>
-					</Tooltip>
+						</DialogContent>
+					</Dialog>
 					<ModeToggle />
 				</div>
 				<div className="flex flex-col items-center gap-4 sm:gap-8 w-full pt-16 sm:pt-24">
