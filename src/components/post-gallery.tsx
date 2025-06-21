@@ -164,7 +164,7 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 	const { setPosts, searchState, setSearchState, setScrollPosition } = usePostStore();
 	const loadMoreRef = useRef<HTMLDivElement>(null);
 	const [sortOrder, setSortOrder] = useState<string>(searchState.sortOrder);
-	const [totalCount, setTotalCount] = useState<number | null>(searchState.totalCount);
+
 	const [showBackToTop, setShowBackToTop] = useState(false);
 	
 	// Modal state
@@ -200,10 +200,9 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 	useEffect(() => {
 		setSearchState({ 
 			sortOrder, 
-			totalCount,
 			tags 
 		});
-	}, [sortOrder, totalCount, tags, setSearchState]);
+	}, [sortOrder, tags, setSearchState]);
 
 	const scrollToTop = () => {
 		window.scrollTo({ top: 0, behavior: "smooth" });
@@ -243,72 +242,7 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 	const effectiveTags = getAllTags();
 	const effectiveTagsString = formatTagsForApi(effectiveTags);
 
-	// Client-side post counting using Rule34 API directly
-	const { data: countData, isLoading: isCountLoading } = useQuery({
-		queryKey: ["postCount", effectiveTagsString, sortOrder],
-		queryFn: async (): Promise<number> => {
-			if (!effectiveTagsString.trim()) return 0;
 
-			const tagsWithSort = `${effectiveTagsString} sort:${sortOrder}`;
-			const LIMIT_PER_PAGE = 50;
-			let totalPosts = 0;
-			let currentPage = 0;
-			let hasMore = true;
-
-			// Linear search through pages until we find a page with fewer posts than the limit
-			while (hasMore) {
-				const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagsWithSort)}&pid=${currentPage}&limit=${LIMIT_PER_PAGE}`;
-				
-				const response = await fetch(apiUrl);
-				if (!response.ok) {
-					throw new Error(`API returned ${response.status}`);
-				}
-
-				const dataText = await response.text();
-				if (!dataText.trim()) {
-					// Empty response, no more posts
-					hasMore = false;
-				} else {
-					try {
-						const jsonData = JSON.parse(dataText);
-						if (Array.isArray(jsonData)) {
-							const postsOnThisPage = jsonData.length;
-							
-							if (postsOnThisPage === 0) {
-								// No posts on this page, we're done
-								hasMore = false;
-							} else if (postsOnThisPage < LIMIT_PER_PAGE) {
-								// Fewer posts than limit, this is the last page
-								totalPosts = currentPage * LIMIT_PER_PAGE + postsOnThisPage;
-								hasMore = false;
-							} else {
-								// Full page, continue to next page
-								currentPage++;
-							}
-						} else {
-							// Invalid response format
-							hasMore = false;
-						}
-					} catch {
-						// Parse error, stop searching
-						hasMore = false;
-					}
-				}
-			}
-
-			return totalPosts;
-		},
-		enabled: !!effectiveTagsString.trim(),
-		staleTime: 1000 * 60 * 10, // 10 minutes - counts change less frequently
-		retry: 1,
-	});
-
-	// Update totalCount when query completes
-	useEffect(() => {
-		if (countData !== undefined) {
-			setTotalCount(countData);
-		}
-	}, [countData]);
 
 	const {
 		data,
@@ -486,27 +420,8 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 			<div className="mb-6 flex items-center justify-between">
 				<div className="flex items-center gap-2">
 					<p className="text-sm text-muted-foreground">
-						{allPosts.length.toLocaleString()}
+						{allPosts.length.toLocaleString()} posts
 					</p>
-					{(isCountLoading || totalCount !== null) && (
-						<>
-							<span className="text-muted-foreground">/</span>
-							{isCountLoading ? (
-								<div className="flex items-center gap-1.5">
-									<Loader2 className="size-3 animate-spin text-muted-foreground" />
-									<span className="text-sm text-muted-foreground">
-										counting...
-									</span>
-								</div>
-							) : (
-								totalCount !== null && (
-									<p className="text-sm text-muted-foreground">
-										{totalCount.toLocaleString()}
-									</p>
-								)
-							)}
-						</>
-					)}
 				</div>
 				<div className="flex items-center gap-2 sm:gap-3">
 					<Select value={sortOrder} onValueChange={setSortOrder}>
@@ -548,9 +463,7 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 				{isFetchingNextPage && <LoadingState message="Loading more posts..." />}
 				{!hasNextPage && allPosts.length > 0 && (
 					<p className="text-muted-foreground text-sm py-8">
-						{totalCount !== null && allPosts.length >= totalCount
-							? `All ${totalCount.toLocaleString()} posts loaded`
-							: "No more posts to load"}
+						No more posts to load
 					</p>
 				)}
 				{/* Invisible trigger element for intersection observer */}
