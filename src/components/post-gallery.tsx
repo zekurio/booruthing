@@ -199,15 +199,25 @@ export function PostGallery({ tags }: { tags: TagWithMode[] }) {
 
 		// Only apply AI filter when there are other search tags present
 		if (searchState.filterAI && tags.length > 0) {
-			const aiFilterTag: TagWithMode = {
+			const aiGeneratedTag: TagWithMode = {
 				tag: "ai_generated",
 				mode: "exclude",
-				id: "ai-filter-hidden",
+				id: "ai-filter-hidden-generated",
+			};
+
+			const aiAssistedTag: TagWithMode = {
+				tag: "ai_assisted",
+				mode: "exclude",
+				id: "ai-filter-hidden-assisted",
 			};
 
 			// Only add if not already present
 			if (!allTags.some((tag) => tag.tag === "ai_generated" && tag.mode === "exclude")) {
-				allTags.push(aiFilterTag);
+				allTags.push(aiGeneratedTag);
+			}
+			
+			if (!allTags.some((tag) => tag.tag === "ai_assisted" && tag.mode === "exclude")) {
+				allTags.push(aiAssistedTag);
 			}
 		}
 
